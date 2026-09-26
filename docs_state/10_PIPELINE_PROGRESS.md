@@ -20,6 +20,7 @@
 | 12 | Upload to Marcaj + publish | TODO | — | 5 ZIPs ≤90MB, confirm 311 files, publish ONCE (~Sat). |
 | 13 | Manual correction + submit jobs | TODO | — | 63 jobs of 5 tiles; submit all before deadline. |
 | 14 | README + final recompute + repo | TODO | — | Install/run steps, weights location, perf, hardware. |
+| 15 | Orchestrator (all-311 driver) | BASELINE DONE | `pipeline/run_pipeline.py` | Discovers 311 tiles across 5 part-dirs → model → objects_by_tile → annotations.xml + measurements.csv. `--limit N` dry run. Verified on 5-tile sample: 17 rows, no crashes, ~1.7s/tile (→ full run ~9min). Currently rows-only; canopy/interrow/waste plug in as A3/A4/Lane-B land. |
 
 ---
 

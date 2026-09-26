@@ -16,7 +16,7 @@
 | 8 | CVAT XML generator | BASELINE DONE | `pipeline/cvat_writer.py` | Emits CVAT 1.1 with mandatory label block. Round-trip validated: reference XML → emit → reparse preserves all counts exactly (vineyard 399/251, row 25/26, interrow 24/25). Ready for model output. |
 | 9 | Route planner (TSP) | TODO (plan ready) | — | See "Task 9 plan" below. TWO routes (blue inspector, red farmer). `route.geojson`=blue, returns to START within 5m, `length_m`. |
 | 10 | Measurements module | BASELINE DONE | `pipeline/measurements.py` | Pixel→EPSG:32635 via tile transform; canopy=union per block, interrow=sum, row length=sum. Validated on reference: 2 blocks, 51 rows, canopy 536m², interrow 4064m², rows 1942m — all physically sane. Ready for model output. |
-| 11 | Web interface | TODO (plan ready) | — | See "Task 11 plan" below. Leaflet/MapLibre; all layers + BOTH routes (blue/red) + panels. |
+| 11 | Web interface | IN PROGRESS (built, data-verified) | `web/{index.html,style.css,app.js}`, `web/data/*`, `pipeline/export_web_data.py` | Plain HTML/CSS/JS + Leaflet, Esri satellite basemap. All layers + toggles + filters + popups + measurements panel. Exporter turns CVAT XML + tiles → WGS84 GeoJSON + measurements.csv. Verified on 2 example tiles (canopy 650/rows 51/interrow 49). Pending: deploy + real model data. **See `docs_state/40_INTERFACE.md` for full handoff.** |
 | 12 | Upload to Marcaj + publish | TODO | — | 5 ZIPs ≤90MB, confirm 311 files, publish ONCE (~Sat). |
 | 13 | Manual correction + submit jobs | TODO | — | 63 jobs of 5 tiles; submit all before deadline. |
 | 14 | README + final recompute + repo | TODO | — | Install/run steps, weights location, perf, hardware. |

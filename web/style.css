@@ -1,0 +1,47 @@
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; font-family: -apple-system, Segoe UI, Roboto, sans-serif; }
+body { display: flex; }
+
+#sidebar {
+  width: 320px; min-width: 320px; height: 100vh; overflow-y: auto;
+  background: #14181d; color: #e6e9ec; padding: 16px 18px;
+  border-right: 1px solid #2a3038;
+}
+#sidebar h1 { margin: 0; font-size: 20px; letter-spacing: .3px; }
+#sidebar .sub { margin: 2px 0 14px; font-size: 11px; color: #8a939c; }
+#sidebar section { margin-bottom: 18px; }
+#sidebar h2 {
+  font-size: 12px; text-transform: uppercase; letter-spacing: .6px;
+  color: #8a939c; margin: 0 0 8px; border-bottom: 1px solid #2a3038; padding-bottom: 4px;
+}
+
+#map { flex: 1; height: 100vh; }
+
+/* layer toggles */
+.toggle { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 13px; }
+.toggle input { accent-color: #4a9eff; }
+.toggle.disabled { opacity: .4; }
+.swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid #0006; flex: none; }
+.swatch.line { height: 4px; border-radius: 2px; }
+.count { margin-left: auto; font-size: 11px; color: #8a939c; }
+
+/* filters */
+.field { display: block; font-size: 12px; color: #b7bfc7; margin-bottom: 10px; }
+.field select {
+  display: block; width: 100%; margin-top: 4px; padding: 6px 8px;
+  background: #1d232b; color: #e6e9ec; border: 1px solid #2a3038; border-radius: 6px;
+}
+
+/* measurements table */
+#measurements { width: 100%; border-collapse: collapse; font-size: 12px; }
+#measurements td { padding: 3px 4px; border-bottom: 1px solid #21272f; }
+#measurements td:last-child { text-align: right; color: #cfd6dd; font-variant-numeric: tabular-nums; }
+#measurements tr.head td { color: #8a939c; text-transform: uppercase; font-size: 10px; letter-spacing: .5px; border-bottom: 1px solid #2a3038; }
+#measurements tr.big td { font-weight: 600; color: #fff; }
+
+.info { font-size: 12px; line-height: 1.5; color: #b7bfc7; }
+.info b { color: #fff; }
+.info .k { color: #8a939c; }
+
+.leaflet-popup-content { font-size: 12px; line-height: 1.5; }
+.leaflet-popup-content b { color: #14181d; }

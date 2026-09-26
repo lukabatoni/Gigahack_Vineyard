@@ -1,0 +1,28 @@
+# ── Virtual environment ─────────────────────────────
+venv/
+.venv/
+
+# ── Large training dataset (link in README, do not commit) ──
+riseholme-vineyard/
+
+# ── Organizer-supplied heavy data (not ours to redistribute in git) ──
+04_source/
+01_tiles/
+
+# ── Pretrained model downloads (link/auto-download, not our weights) ──
+mobile_sam.pt
+yolo11n-seg.pt
+*.pt
+!weights/*.pt
+
+# ── Training runs & generated output ────────────────
+pipeline/runs/
+pipeline/output/
+pipeline/riseholme_yolo/
+
+# ── Python cruft ────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+.DS_Store

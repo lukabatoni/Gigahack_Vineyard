@@ -104,6 +104,21 @@
 - Do NOT assume rows are at 45° or any fixed angle. Solutions must generalize across
   all tile orientations, not be tuned to one example image.
 
+### 2026-09-26 — Row centreline method: per-tile dominant angle, NOT per-mask PCA
+- **Tried first, FAILED:** per-instance PCA (major axis of each vine_row mask). The
+  epoch-22 model outputs short, near-round blobs (~300×200px, ratio ~0.6), so a single
+  mask carries no reliable direction — polylines came out perpendicular to the true rows
+  on the diagonal tile (r021). Correct-by-luck only when rows are already vertical (r006).
+- **Adopted:** estimate ONE dominant row angle per tile via a structure tensor on the
+  union of all vine_row masks (rows appear as parallel ridges; their shared orientation
+  is robust). Project each mask centroid onto along/across axes, cluster by perpendicular
+  offset (spacing ~45px) → one polyline per physical row along the dominant angle.
+- Still honors "no fixed-angle assumption" — the angle is derived per tile from content.
+- **Known limit:** coverage = model recall. Sparse/dormant rows get no mask → no line.
+  Re-run when the 40-epoch model lands. If a tile has two blocks at different angles
+  (road between), one-angle-per-tile may be too crude → revisit at Task 7 (global IDs).
+- Code: `pipeline/rows_postproc.py`. E2E verified: 14 rows / 370.6m on the 2 example tiles.
+
 ### 2026-09-26 — Classical CV canopy method (baseline, likely superseded)
 - ExG (Excess Green = 2G−R−B) chosen over VARI/GLI/NGRDI/local-contrast (best F1
   ~0.727/0.631 on the two example tiles).

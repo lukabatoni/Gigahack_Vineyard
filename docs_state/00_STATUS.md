@@ -4,7 +4,7 @@
 > This is the live heartbeat of the project. If anything here is stale, the whole
 > chat starts from a wrong assumption. Keep it accurate.
 
-**Last updated:** 2026-09-26 (Fri) — web interface (Task 11) built & data-verified; see `40_INTERFACE.md`.
+**Last updated:** 2026-09-26 (Fri) — web interface (Task 11) built & data-verified; see `40_INTERFACE.md`. Parallel two-lane work protocol added; see `50_PARALLEL_WORK.md`. Training resumed to 40 epochs (bg id bp67b2phx).
 **Deadline:** 15:00 Sunday 2026-09-27 (Chișinău time)
 
 ---
@@ -26,12 +26,13 @@
 
 ## Current stage
 
-**Phase:** Canopy + rows — YOLO11-seg training RUNNING in background.
+**Phase:** Canopy + rows — YOLO11-seg RESUMED training RUNNING in background.
 
-Training `yolo11n-seg` on the converted Riseholme dataset (trunk + vine_row,
-imgsz=640, batch=2, 60 epochs w/ patience=15) on Apple M1 Pro (MPS).
-Measured ~15.5 min/epoch → expect early-stop finish in ~2.5–4 hrs.
-Outputs: `pipeline/runs/segment/riseholme/weights/best.pt`.
+Resumed run (`pipeline/resume_riseholme.py`, bg id `bp67b2phx`): reloads epoch-22
+`last.pt` and re-targets 40 epochs (counter restarts 1/40, refining on top of the 22
+already learned). imgsz=640, batch=2, patience=15 on Apple M1 Pro (MPS).
+Measured ~15.5 min/epoch → expect finish in ~4-10 hrs (or earlier if patience triggers).
+Outputs overwrite `pipeline/runs/segment/riseholme/weights/best.pt`.
 
 This one run produces BOTH:
 - a **vine_row detector** → Task 4 (rows)

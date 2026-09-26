@@ -20,6 +20,11 @@
     </section>
 
     <section>
+      <h2>Legend</h2>
+      <div id="legend"></div>
+    </section>
+
+    <section>
       <h2>Filter</h2>
       <label class="field">Block (vineyard_id)
         <select id="filter-block"><option value="">All</option></select>
@@ -35,12 +40,18 @@
     </section>
 
     <section>
+      <h2>Statistics</h2>
+      <table id="stats"><tbody></tbody></table>
+    </section>
+
+    <section>
       <h2>Selection</h2>
       <div id="info" class="info">Click an object for its IDs &amp; attributes.</div>
     </section>
   </div>
 
   <div id="map"></div>
+  <div id="banner">No map data found in <code>data/</code>. Run <code>python3 pipeline/export_web_data.py</code> to generate it.</div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>

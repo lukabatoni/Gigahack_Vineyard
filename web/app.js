@@ -13,27 +13,48 @@ const MIN_ZOOM_MARGIN = 1;    // how many levels you may zoom out past the data-
 const BOUNDS_PAD = 0.3;       // pan slack around the data extent (fraction of extent)
 const MAX_BOUNDS_VISCOSITY = 0.85; // 0=soft edge, 1=hard wall when panning to the edge
 
-// ── map + basemap ──────────────────────────────────────────────────────────
+// ── attribute palettes (scored attributes get their own colours) ───────────────
+const STRUCTURE_PALETTE = {   // row_structure
+  regular: "#2ecc40", disrupted: "#ff851b", unassessable: "#aaaaaa", "": "#4a9eff",
+};
+const COVER_PALETTE = {       // interrow_cover
+  bare_soil: "#c2925b", vegetation: "#2ecc40", mixed: "#ffdc00", unassessable: "#888888", "": "#ff8c00",
+};
+
+// ── basemaps ───────────────────────────────────────────────────────────────
 const map = L.map("map", {
   zoomControl: true,
   maxZoom: MAX_ZOOM,
   maxBoundsViscosity: MAX_BOUNDS_VISCOSITY,
 }).setView([47.123, 28.707], 16);
 
-L.tileLayer(
+const satellite = L.tileLayer(
   "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
   { maxZoom: MAX_ZOOM, maxNativeZoom: MAX_NATIVE_ZOOM, attribution: "Imagery © Esri" }
+);
+const streets = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  { maxZoom: MAX_ZOOM, attribution: "© OpenStreetMap" });
+const blank = L.layerGroup();
+satellite.addTo(map);
+L.control.layers(
+  { "Satellite": satellite, "Streets": streets, "None": blank }, null,
+  { position: "topright", collapsed: true }
 ).addTo(map);
+
+// scale bar
+L.control.scale({ metric: true, imperial: false, position: "bottomleft" }).addTo(map);
 
 // ── layer catalogue (order = draw order / legend order) ──────────────────────
 // kind: polygon | line | route | point | context
 const LAYERS = [
   { key: "interrow", file: "interrow.geojson", kind: "polygon", label: "Inter-row areas",
-    color: "#ff8c00", fill: 0.2, filterable: true, on: true },
+    color: "#ff8c00", fill: 0.2, filterable: true, on: true,
+    attrKey: "interrow_cover", palette: COVER_PALETTE },
   { key: "canopy",   file: "canopy.geojson",   kind: "polygon", label: "Canopy (vines)",
     color: "#2ecc40", fill: 0.45, filterable: true, on: true },
   { key: "rows",     file: "rows.geojson",     kind: "line",    label: "Rows",
-    color: "#4a9eff", weight: 2, filterable: true, on: true },
+    color: "#4a9eff", weight: 2, filterable: true, on: true,
+    attrKey: "row_structure", palette: STRUCTURE_PALETTE },
   { key: "waste",    file: "waste.geojson",    kind: "polygon", label: "Waste",
     color: "#ff4136", fill: 0.35, filterable: true, on: true },
   { key: "route",        file: "route.geojson",        kind: "route", label: "Inspector route (blue)",
@@ -51,6 +72,7 @@ const LAYERS = [
 const store = {};          // key -> { cfg, data, layer, count }
 let filterBlock = "";
 let filterRow = "";
+let dataBounds = null;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 async function fetchJSON(url) {
@@ -82,11 +104,20 @@ function popupHTML(cfg, props) {
   return rows.join("<br>");
 }
 
-function styleFor(cfg) {
-  if (cfg.kind === "line" || cfg.kind === "route") {
-    return { color: cfg.color, weight: cfg.weight || 3, opacity: 0.95, dashArray: cfg.dash };
+function colorFor(cfg, feature) {
+  if (cfg.palette && feature) {
+    const v = (feature.properties || {})[cfg.attrKey] || "";
+    return cfg.palette[v] || cfg.color;
   }
-  return { color: cfg.color, weight: cfg.weight || 1, fillColor: cfg.color,
+  return cfg.color;
+}
+
+function styleFor(cfg, feature) {
+  const color = colorFor(cfg, feature);
+  if (cfg.kind === "line" || cfg.kind === "route") {
+    return { color, weight: cfg.weight || 3, opacity: 0.95, dashArray: cfg.dash };
+  }
+  return { color, weight: cfg.weight || 1, fillColor: color,
            fillOpacity: cfg.fill != null ? cfg.fill : 0.3, opacity: 0.9 };
 }
 
@@ -100,7 +131,7 @@ function buildLayer(cfg, data) {
   }
   return L.geoJSON(data, {
     filter: (f) => matchFilter(cfg, f.properties || {}),
-    style: () => styleFor(cfg),
+    style: (f) => styleFor(cfg, f),
     onEachFeature: (f, l) => l.bindPopup(popupHTML(cfg, f.properties || {})),
   });
 }
@@ -152,6 +183,46 @@ function renderToggles() {
   }
 }
 
+// ── UI: legend (attribute colour keys, with live counts) ─────────────────────
+function renderLegend() {
+  const box = document.getElementById("legend");
+  box.innerHTML = "";
+  const section = (title, cfgKey, palette, order) => {
+    const s = store[cfgKey];
+    if (!s || !s.data || !s.count) return;
+    const counts = {};
+    for (const f of s.data.features) {
+      const v = (f.properties || {})[LAYERS.find((l) => l.key === cfgKey).attrKey] || "(none)";
+      counts[v] = (counts[v] || 0) + 1;
+    }
+    const h = document.createElement("div");
+    h.className = "legend-title";
+    h.textContent = title;
+    box.appendChild(h);
+    for (const key of order) {
+      if (!(key in counts)) continue;
+      const row = document.createElement("div");
+      row.className = "legend-row";
+      row.innerHTML = `<span class="swatch" style="background:${palette[key] || palette[""]}"></span>` +
+                      `<span>${key}</span><span class="count">${counts[key]}</span>`;
+      box.appendChild(row);
+      delete counts[key];
+    }
+    for (const key of Object.keys(counts)) {   // any unexpected values
+      const row = document.createElement("div");
+      row.className = "legend-row";
+      row.innerHTML = `<span class="swatch" style="background:${palette[""]}"></span>` +
+                      `<span>${key}</span><span class="count">${counts[key]}</span>`;
+      box.appendChild(row);
+    }
+  };
+  section("Rows — row_structure", "rows", STRUCTURE_PALETTE,
+          ["regular", "disrupted", "unassessable"]);
+  section("Inter-row — interrow_cover", "interrow", COVER_PALETTE,
+          ["bare_soil", "mixed", "vegetation", "unassessable"]);
+  if (!box.children.length) box.innerHTML = '<div class="muted">no attribute layers loaded</div>';
+}
+
 // ── UI: filters ─────────────────────────────────────────────────────────────
 function populateFilters() {
   const blocks = new Set(), rowsIds = new Set();
@@ -177,6 +248,67 @@ function fillSelect(id, values) {
     const o = document.createElement("option");
     o.value = v; o.textContent = v;
     sel.appendChild(o);
+  }
+}
+
+// ── stats dashboard ──────────────────────────────────────────────────────────
+function tally(cfgKey, attrKey) {
+  const s = store[cfgKey];
+  const out = {};
+  if (!s || !s.data) return out;
+  for (const f of s.data.features) {
+    const v = (f.properties || {})[attrKey] || "(none)";
+    out[v] = (out[v] || 0) + 1;
+  }
+  return out;
+}
+
+function renderStats() {
+  const tbody = document.querySelector("#stats tbody");
+  tbody.innerHTML = "";
+  const add = (label, value, cls = "") => {
+    const tr = document.createElement("tr");
+    if (cls) tr.className = cls;
+    tr.innerHTML = `<td>${label}</td><td>${value}</td>`;
+    tbody.appendChild(tr);
+  };
+  const head = (t) => add(t, "", "head");
+
+  const rs = tally("rows", "row_structure");
+  head("Row structure");
+  for (const k of ["regular", "disrupted", "unassessable"]) add(k, rs[k] || 0);
+
+  const cov = tally("interrow", "interrow_cover");
+  head("Inter-row cover");
+  for (const k of ["bare_soil", "mixed", "vegetation", "unassessable"]) add(k, cov[k] || 0);
+
+  head("Object counts");
+  add("Canopy polygons", (store.canopy && store.canopy.count) || 0);
+  add("Rows", (store.rows && store.rows.count) || 0);
+  add("Inter-row areas", (store.interrow && store.interrow.count) || 0);
+  add("Waste boxes", (store.waste && store.waste.count) || 0);
+
+  // per-block object tallies
+  const perBlock = {};   // vid -> {canopy, rows:Set(row_id), interrow, waste}
+  const bump = (key, prop) => {
+    const s = store[key];
+    if (!s || !s.data) return;
+    for (const f of s.data.features) {
+      const p = f.properties || {};
+      const vid = p.vineyard_id || "(none)";
+      perBlock[vid] = perBlock[vid] || { canopy: 0, rows: new Set(), interrow: 0, waste: 0 };
+      if (key === "rows") perBlock[vid].rows.add(p.row_id);
+      else perBlock[vid][prop]++;
+    }
+  };
+  bump("canopy", "canopy"); bump("rows"); bump("interrow", "interrow"); bump("waste", "waste");
+  const vids = Object.keys(perBlock).sort();
+  if (vids.length) {
+    head("Per block (canopy / rows / interrow / waste)");
+    for (const vid of vids) {
+      const b = perBlock[vid];
+      add(vid, `${b.canopy} / ${b.rows.size} / ${b.interrow} / ${b.waste}`);
+    }
   }
 }
 
@@ -237,9 +369,34 @@ function renderMeasurements(rows) {
   add("Farmer (red)", rf == null ? "pending" : num(rf) + " m");
 }
 
+// ── map controls: reset view + zoom indicator ─────────────────────────────────
+function addControls() {
+  const Reset = L.Control.extend({
+    options: { position: "topleft" },
+    onAdd() {
+      const b = L.DomUtil.create("a", "leaflet-bar reset-view");
+      b.href = "#"; b.title = "Reset view"; b.innerHTML = "⤢";
+      L.DomEvent.on(b, "click", (e) => {
+        L.DomEvent.stop(e);
+        if (dataBounds && dataBounds.isValid()) map.fitBounds(dataBounds, { padding: [30, 30] });
+      });
+      return b;
+    },
+  });
+  map.addControl(new Reset());
+
+  const zoomBox = L.control({ position: "bottomright" });
+  zoomBox.onAdd = () => {
+    const d = L.DomUtil.create("div", "zoom-indicator");
+    const upd = () => { d.textContent = "z " + map.getZoom(); };
+    map.on("zoomend", upd); upd();
+    return d;
+  };
+  zoomBox.addTo(map);
+}
+
 // ── boot ──────────────────────────────────────────────────────────────────────
 async function boot() {
-  // load all layer data
   const allFeatures = [];
   for (const cfg of LAYERS) {
     const data = await fetchJSON(DATA + cfg.file);
@@ -251,20 +408,24 @@ async function boot() {
   }
 
   renderToggles();
+  renderLegend();
   populateFilters();
+  renderStats();
 
-  // measurements
   const csv = await fetch(DATA + "measurements.csv").then((r) => r.ok ? r.text() : null).catch(() => null);
   renderMeasurements(csv ? parseCSV(csv) : []);
 
-  // fit to loaded geometry, then lock the view to the site (auto-scales to real data)
-  const bounds = L.geoJSON({ type: "FeatureCollection", features: allFeatures }).getBounds();
-  if (bounds.isValid()) {
-    map.fitBounds(bounds, { padding: [30, 30] });
-    // can't pan away from the field, can't zoom out to the whole world
-    map.setMaxBounds(bounds.pad(BOUNDS_PAD));
-    const fitZoom = map.getBoundsZoom(bounds);
+  addControls();
+
+  // fit + lock the view to the site (auto-scales to real data)
+  dataBounds = L.geoJSON({ type: "FeatureCollection", features: allFeatures }).getBounds();
+  if (dataBounds.isValid()) {
+    map.fitBounds(dataBounds, { padding: [30, 30] });
+    map.setMaxBounds(dataBounds.pad(BOUNDS_PAD));
+    const fitZoom = map.getBoundsZoom(dataBounds);
     map.setMinZoom(Math.max(0, fitZoom - MIN_ZOOM_MARGIN));
+  } else {
+    document.getElementById("banner").style.display = "block";
   }
 }
 

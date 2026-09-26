@@ -244,7 +244,7 @@ Merging is a human decision. After merge, both lanes `git pull --ff-only` on `ma
 | ID | Lane | Milestone | MR | Merged |
 |----|------|-----------|----|--------|
 | A-1 | A | rows postproc → CVAT + measurements | e556ca4 | [x] |
-| A-2 | A | orchestrator, all-311 dry run | — | [ ] |
+| A-2 | A | orchestrator, all-311 dry run | 66d2a32 | [x] |
 | A-3 | A | canopy via SAM, re-scored | — | [ ] |
 | A-4 | A | interrow + global IDs | — | [ ] |
 | B-1 | B | web loads full layers + both routes | — | [ ] |

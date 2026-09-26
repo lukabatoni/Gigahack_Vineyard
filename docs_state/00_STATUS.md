@@ -4,7 +4,7 @@
 > This is the live heartbeat of the project. If anything here is stale, the whole
 > chat starts from a wrong assumption. Keep it accurate.
 
-**Last updated:** 2026-09-26 (Fri)
+**Last updated:** 2026-09-26 (Fri) — web interface (Task 11) built & data-verified; see `40_INTERFACE.md`.
 **Deadline:** 15:00 Sunday 2026-09-27 (Chișinău time)
 
 ---

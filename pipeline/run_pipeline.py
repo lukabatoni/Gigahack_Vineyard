@@ -22,9 +22,10 @@ from pathlib import Path
 
 from ultralytics import YOLO
 
-from rows_postproc import BEST, predict_tile, assign_provisional_ids
+from rows_postproc import BEST, predict_tile
 from cvat_writer import write_cvat_xml
 from measurements import compute_measurements, write_csv
+from assign_ids import assign_global_ids
 
 TILES_ROOT = Path("/Users/luka-sap/Desktop/Gigahack/01_tiles")
 OUT_DIR = Path("/Users/luka-sap/Desktop/Gigahack/pipeline/output")
@@ -41,7 +42,6 @@ def run(tiles, model, conf=0.25):
     t0 = time.time()
     for i, tile in enumerate(tiles, 1):
         rows, (w, h) = predict_tile(model, tile, conf=conf)
-        assign_provisional_ids(rows, tile.stem)
         objects_by_tile[tile.name] = {
             "width": w, "height": h,
             "vineyard": [], "interrow_area": [], "waste": [], "row": rows,
@@ -49,12 +49,6 @@ def run(tiles, model, conf=0.25):
         print(f"[{i}/{len(tiles)}] {tile.name}: {len(rows)} rows "
               f"({(time.time() - t0) / i:.1f}s/tile avg)")
     return objects_by_tile
-
-
-def resolve_tiles_dir(objects_by_tile, tiles_root):
-    """measurements needs a dir it can resolve filenames under; the root works
-    because compute_measurements falls back to rglob."""
-    return tiles_root
 
 
 def main():
@@ -76,12 +70,18 @@ def main():
     model = YOLO(str(BEST))
     objects_by_tile = run(tiles, model, conf=args.conf)
 
+    # Global ID assignment (Task 7): stitch rows across tiles in world space,
+    # overwriting the provisional per-tile ids with consistent vineyard_id/row_id.
+    tiles_root = Path(args.tiles_dir)
+    nb, nr = assign_global_ids(objects_by_tile, tiles_root)
+    print(f"Global IDs: {nb} blocks, {nr} stitched rows")
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     xml_out = OUT_DIR / f"annotations_{args.tag}.xml"
     csv_out = OUT_DIR / f"measurements_{args.tag}.csv"
     write_cvat_xml(objects_by_tile, xml_out)
 
-    m = compute_measurements(objects_by_tile, resolve_tiles_dir(objects_by_tile, Path(args.tiles_dir)))
+    m = compute_measurements(objects_by_tile, tiles_root)
     print(f"\n=== SUMMARY ({len(objects_by_tile)} tiles) ===")
     print(f"row_count          : {m['row_count']}")
     print(f"total_row_length_m : {m['total_row_length_m']:.1f}")

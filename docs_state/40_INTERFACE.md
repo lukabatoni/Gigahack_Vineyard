@@ -160,8 +160,12 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done
 - [x] **S10. Serve + verify** — `python3 -m http.server 8765` in `web/`; all routes
       200; coords confirmed WGS84 at the site (lon≈28.709, lat≈47.122).
 - [ ] **S11. Visual screenshot in a browser** (do on a machine with a display).
-- [ ] **S12. Deploy** — pick target (GitHub Pages recommended: push `web/` or use
-      Pages from `/web`). Put the live link in `README.md`.
+- [~] **S12. Deploy** — GitHub Actions workflow `.github/workflows/pages.yml` added
+      (deploys `web/` on push to main/user-interface). **One-time manual step remains:**
+      repo Settings → Pages → Source = "GitHub Actions". Then the run publishes and
+      prints the live URL → put it in `README.md`. If the `github-pages` environment
+      is restricted to the default branch, merge to `main` or run the workflow from
+      `main` (workflow_dispatch).
 - [ ] **S13. Swap to real data** — rerun exporter on model output + 311 tiles;
       re-verify; interface needs no code change.
 

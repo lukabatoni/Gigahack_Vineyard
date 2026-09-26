@@ -249,7 +249,7 @@ Merging is a human decision. After merge, both lanes `git pull --ff-only` on `ma
 | A-4 | A | interrow + global IDs | — | [ ] |
 | B-1 | B | web loads full layers + both routes | on main | [x] (UI built; blue/red route toggles present; loads example data) |
 | B-2 | B | waste detector (IoU≥0.3) | — | [ ] BLOCKED — DroneWaste not on disk |
-| B-3 | B | route planner (mock → real) | laneB/route | [~] mock engine done & verified; MR pending |
+| B-3 | B | route planner (mock → real) | 3cf9c85 | [x] MOCK version merged; final route pending Lane A A-4 (interrow + disrupted-row targets) via --interrow --targets |
 
 ---
 

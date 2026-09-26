@@ -247,9 +247,9 @@ Merging is a human decision. After merge, both lanes `git pull --ff-only` on `ma
 | A-2 | A | orchestrator, all-311 dry run | 66d2a32 | [x] |
 | A-3 | A | canopy via SAM, re-scored | — | [ ] |
 | A-4 | A | interrow + global IDs | — | [ ] |
-| B-1 | B | web loads full layers + both routes | — | [ ] |
-| B-2 | B | waste detector (IoU≥0.3) | — | [ ] |
-| B-3 | B | route planner (mock → real) | — | [ ] |
+| B-1 | B | web loads full layers + both routes | on main | [x] (UI built; blue/red route toggles present; loads example data) |
+| B-2 | B | waste detector (IoU≥0.3) | — | [ ] BLOCKED — DroneWaste not on disk |
+| B-3 | B | route planner (mock → real) | 3cf9c85 | [x] MOCK version merged; final route pending Lane A A-4 (interrow + disrupted-row targets) via --interrow --targets |
 
 ---
 
@@ -262,4 +262,10 @@ Merging is a human decision. After merge, both lanes `git pull --ff-only` on `ma
 - **Merged so far on main:** pipeline code (canopy/rows converter, cvat_writer,
   measurements, eval), web interface (Task 11), resume script.
 - **Blocked:** Task 6 waste (no DroneWaste on disk, no local ground truth, mentor
-  Qs open). Task 9 route (needs Lane A interrow + targets for FINAL output).
+  Qs open).
+- **Task 9 route:** mock engine DONE (`pipeline/route_planner.py`, branch `laneB/route`)
+  — grid nav-graph + TSP, both routes 100% inside & return to START. Needs Lane A
+  `interrow.geojson` (walkable fields) + real targets (waste centroids + disrupted-row
+  inspection points) for the FINAL efficient route. Integrate via `--interrow --targets`.
+  NOTE for Lane A: targets file = FeatureCollection of Points, props `{id, kind:
+  "inspection"|"waste", vineyard_id, row_id}`, EPSG:32635 (see route_planner.load_targets).

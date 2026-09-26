@@ -100,6 +100,25 @@
 - **Scoring (10%):** bbox F1, one-to-one matching at **IoU ≥ 0.3**.
 - Plan: fine-tune YOLO detector on **DroneWaste** (open, aerial). Separate run from seg model.
 
+### 2026-09-26 — Route planner engine (Lane B, Task 9, mock-first)
+- **Method:** regular grid over the walkable polygon (nodes = grid points inside;
+  edges = 4-neighbour segments `shapely.covers`-tested to stay fully inside) →
+  `networkx` single-source Dijkstra between START+targets → nearest-neighbour + 2-opt
+  TSP returning to START → stitch node paths into one LineString. Vectorised
+  `shapely.contains_xy` / `covers` for speed (whole 4 ha passages graph builds in ~13 s
+  at 2 m resolution: ~10k nodes / ~22k edges).
+- **Walkable:** passages ⋃ interrow − forbidden (− canopy when available). Mock run
+  uses passages only (interrow comes from Lane A A4).
+- **Two routes, same graph:** blue = waste ∪ inspection targets → `route.geojson`
+  (scored); red = waste only → `route_farmer.geojson`. Both EPSG:32635 w/ `length_m`.
+- **Gate validation:** inside-fraction measured PER SEGMENT (a global
+  `intersection().length` merges repeated traversals of the same thin corridor and
+  under-reports; per-segment `covers` is correct). Resolution 2 m → target snap error
+  ≤1.41 m < the 2 m coverage tolerance; route literally begins/ends at START so the
+  5 m return gate is exact. Mock verify: blue 3459 m / red 2951 m, both 100% inside, PASS.
+- **Integration contract:** `--interrow interrow.geojson --targets targets.geojson`
+  (targets = Points w/ props id, kind∈{inspection,waste}, vineyard_id, row_id; EPSG:32635).
+
 ### 2026-09-26 — No row-angle assumptions (user directive, earlier)
 - Do NOT assume rows are at 45° or any fixed angle. Solutions must generalize across
   all tile orientations, not be tuned to one example image.

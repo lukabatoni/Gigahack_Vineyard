@@ -59,6 +59,16 @@
 - Dormant/yellow-brown vines are hard to separate from brown soil at 2.5cm/px by color.
 - This is the core reason we need a NN, not just an index threshold.
 
+## Route planner (Task 9) findings
+- START `[629504.7, 5220250.75]` EPSG:32635 lies INSIDE `passages.geojson` (dist 0).
+- `passages` = 4.0 ha of thin roads spanning ~1.7 km; `forbidden` = 74.5 ha.
+- Road-only walkable → routes back-and-forth heavily (mock blue 1360 pts). Real
+  `interrow.geojson` (2D walkable fields, Lane A A4) will make routes far more efficient.
+- Measuring "inside %" via a single `line.intersection(walkable).length` UNDER-reports
+  when the route reuses a corridor (GEOS merges overlaps). Measure PER SEGMENT instead.
+- `shapely.contains_xy` / `shapely.covers` (shapely 2.0) are vectorised → whole-area
+  grid graph builds in seconds; no need to window the area.
+
 ## Environment gotchas
 - Python is 3.9.6 → cannot use `str | Path` union syntax; use `typing.Union`.
 - `networkx==3.3` needs Python ≥3.10 → we pinned `networkx==3.2.1`.

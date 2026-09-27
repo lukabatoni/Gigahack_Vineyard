@@ -64,7 +64,7 @@ def main():
     ap.add_argument("--maxzoom", type=int, default=20)
     args = ap.parse_args()
 
-    src_paths = sorted(glob.glob(str(Path(args.tiles) / "siret3_*.tif")))
+    src_paths = sorted(glob.glob(str(Path(args.tiles) / "**" / "siret3_*.tif"), recursive=True))
     if not src_paths:
         raise SystemExit(f"No tiles found in {args.tiles}")
     print(f"{len(src_paths)} source tiles")

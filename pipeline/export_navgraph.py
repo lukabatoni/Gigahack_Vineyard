@@ -18,6 +18,7 @@ Output JSON (WGS84 for display, metres for edge weights):
 Usage:
   python3 pipeline/export_navgraph.py                      # passages-only (demo)
   python3 pipeline/export_navgraph.py --interrow interrow.geojson   # + real fields
+  python3 pipeline/export_navgraph.py --interrow interrow.geojson --rows rows.geojson
 """
 import argparse
 import json
@@ -26,6 +27,7 @@ from pathlib import Path
 import numpy as np
 from pyproj import Transformer
 from scipy.spatial import cKDTree
+from shapely.ops import unary_union
 
 import route_planner as rp
 
@@ -39,6 +41,8 @@ def main():
     ap.add_argument("--passages", default=str(rp.ROUTE_DIR / "passages.geojson"))
     ap.add_argument("--forbidden", default=str(rp.ROUTE_DIR / "forbidden.geojson"))
     ap.add_argument("--interrow", default=None)
+    ap.add_argument("--rows", default=None, help="Row polylines (EPSG:32635); buffered and subtracted as barriers")
+    ap.add_argument("--row-buffer", type=float, default=0.4, help="Buffer radius (m) around each row line")
     ap.add_argument("--resolution", type=float, default=rp.RESOLUTION_M)
     ap.add_argument("--out", default=str(OUT))
     args = ap.parse_args()
@@ -49,6 +53,19 @@ def main():
     interrow = rp.load_union(args.interrow) if args.interrow and Path(args.interrow).exists() else None
     walkable = rp.build_walkable(passages, interrow=interrow, forbidden=forbidden)
     print(f"  walkable = {walkable.area/1e4:.2f} ha (interrow: {'real' if interrow else 'none'})")
+
+    # subtract row buffers — human can walk in inter-row corridors but cannot cross vine rows
+    if args.rows and Path(args.rows).exists():
+        import json as _json
+        from shapely.geometry import shape
+        feats = _json.loads(Path(args.rows).read_text()).get("features", [])
+        row_geoms = [shape(f["geometry"]) for f in feats if f.get("geometry")]
+        if row_geoms:
+            row_barrier = unary_union(row_geoms).buffer(args.row_buffer)
+            before = walkable.area
+            walkable = walkable.difference(row_barrier)
+            print(f"  row barriers subtracted: {len(row_geoms)} lines × {args.row_buffer} m buffer "
+                  f"→ removed {(before - walkable.area):.0f} m2")
 
     print(f"Building nav graph (resolution {args.resolution} m) …")
     G, coords = rp.build_graph(walkable, args.resolution)

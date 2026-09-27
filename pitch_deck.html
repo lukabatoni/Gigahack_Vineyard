@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wizzy — Vineyard AI Field Challenge</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c2330; --ink:#e8edf4; --muted:#98a3b3;
+    --accent:#7dd3fc; --green:#4ade80; --amber:#fbbf24; --red:#f87171; --violet:#c4b5fd;
+    --line:#2a3342; --shadow:0 10px 40px rgba(0,0,0,.45);
+    --fs-h1:56px; --fs-h2:34px; --fs-lead:22px; --fs-body:18px; --fs-small:15px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:#05070a; color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    display:flex; align-items:center; justify-content:center; overflow:hidden;
+  }
+  /* Fixed 16:9 stage, scaled to viewport — guarantees no reflow/overlap */
+  #stage{
+    position:relative; width:1280px; height:720px;
+    transform-origin:center center;
+  }
+  .slide{
+    position:absolute; inset:0; width:1280px; height:720px;
+    background:linear-gradient(160deg,#10151d 0%,#0b0f15 100%);
+    border:1px solid var(--line); border-radius:18px; box-shadow:var(--shadow);
+    padding:56px 64px; display:none; flex-direction:column; overflow:hidden;
+  }
+  .slide.active{display:flex;}
+  .kicker{
+    font-size:var(--fs-small); letter-spacing:.18em; text-transform:uppercase;
+    color:var(--accent); font-weight:700; margin-bottom:10px;
+  }
+  h1{font-size:var(--fs-h1); line-height:1.05; font-weight:800; letter-spacing:-.02em;}
+  h2{font-size:var(--fs-h2); line-height:1.1; font-weight:800; letter-spacing:-.01em; margin-bottom:6px;}
+  .lead{font-size:var(--fs-lead); color:var(--muted); line-height:1.4; font-weight:500;}
+  p,li{font-size:var(--fs-body); line-height:1.5; color:var(--ink);}
+  .muted{color:var(--muted);}
+  .row{display:flex; gap:22px;}
+  .col{flex:1; min-width:0;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+  .grid3{display:grid; grid-template-columns:repeat(3,1fr); gap:18px;}
+  .grid4{display:grid; grid-template-columns:repeat(4,1fr); gap:16px;}
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:22px 22px; display:flex; flex-direction:column; gap:8px; min-width:0;
+  }
+  .card h3{font-size:19px; font-weight:700;}
+  .card p{font-size:var(--fs-small); color:var(--muted); line-height:1.45;}
+  .tag{display:inline-block; font-size:12px; font-weight:700; letter-spacing:.06em;
+    text-transform:uppercase; padding:4px 10px; border-radius:999px;}
+  .tag.blue{background:rgba(125,211,252,.14); color:var(--accent);}
+  .tag.green{background:rgba(74,222,128,.14); color:var(--green);}
+  .tag.amber{background:rgba(251,191,36,.14); color:var(--amber);}
+  .tag.violet{background:rgba(196,181,253,.14); color:var(--violet);}
+  .stat{font-size:44px; font-weight:800; letter-spacing:-.02em; line-height:1;}
+  .stat.green{color:var(--green);} .stat.blue{color:var(--accent);}
+  .stat.amber{color:var(--amber);} .stat.violet{color:var(--violet);}
+  .stat-lbl{font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-top:8px;}
+  ul{margin-left:0; list-style:none; display:flex; flex-direction:column; gap:10px;}
+  ul li{position:relative; padding-left:26px;}
+  ul li::before{content:""; position:absolute; left:4px; top:9px; width:9px; height:9px;
+    border-radius:3px; background:var(--accent);}
+  ol.stories{margin-left:0; list-style:none; display:flex; flex-direction:column; gap:12px; counter-reset:s;}
+  ol.stories li{position:relative; padding-left:44px; counter-increment:s;}
+  ol.stories li::before{content:counter(s); position:absolute; left:0; top:-2px;
+    width:30px; height:30px; border-radius:9px; background:var(--panel2);
+    border:1px solid var(--line); color:var(--accent); font-weight:800;
+    display:flex; align-items:center; justify-content:center; font-size:15px;}
+  .pipe{display:flex; align-items:stretch; gap:0; margin-top:8px;}
+  .pipe .step{flex:1; background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; padding:16px 14px; text-align:center; display:flex;
+    flex-direction:column; gap:6px; justify-content:center; min-width:0;}
+  .pipe .step .ic{font-size:24px;}
+  .pipe .step b{font-size:15px;}
+  .pipe .step span{font-size:12px; color:var(--muted); line-height:1.35;}
+  .pipe .arr{display:flex; align-items:center; color:var(--muted); font-size:22px; padding:0 8px;}
+  .footer{position:absolute; left:64px; right:64px; bottom:22px; display:flex;
+    justify-content:space-between; align-items:center; font-size:12px; color:var(--muted);}
+  .footer .dot{color:var(--accent); font-weight:700;}
+  .members{display:flex; gap:14px; flex-wrap:wrap; margin-top:8px;}
+  .member{background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:14px 20px; display:flex; flex-direction:column; gap:2px;}
+  .member b{font-size:18px;} .member span{font-size:12px; color:var(--muted);}
+  .badge{position:absolute; top:44px; right:64px; font-size:12px; color:var(--muted);
+    border:1px solid var(--line); border-radius:999px; padding:6px 14px;}
+  .center{align-items:center; justify-content:center; text-align:center;}
+  .accentbar{width:64px; height:5px; background:var(--accent); border-radius:3px; margin:16px 0 20px;}
+  .kv{display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--line); font-size:15px;}
+  .kv:last-child{border-bottom:none;}
+  .kv b{color:var(--green);}
+  .hl{color:var(--accent); font-weight:700;}
+  /* Nav */
+  #nav{position:fixed; bottom:18px; left:50%; transform:translateX(-50%);
+    display:flex; gap:10px; align-items:center; z-index:50;}
+  #nav button{background:var(--panel); border:1px solid var(--line); color:var(--ink);
+    border-radius:8px; padding:6px 12px; font-size:14px; cursor:pointer;}
+  #nav button:hover{border-color:var(--accent);}
+  #pageno{font-size:13px; color:var(--muted); min-width:54px; text-align:center;}
+  .dots{position:fixed; top:14px; left:50%; transform:translateX(-50%);
+    display:flex; gap:7px; z-index:50;}
+  .dots i{width:8px; height:8px; border-radius:50%; background:#2a3342; cursor:pointer; transition:.2s;}
+  .dots i.on{background:var(--accent); width:22px; border-radius:4px;}
+</style>
+</head>
+<body>
+<div class="dots" id="dots"></div>
+<div id="stage">
+
+  <!-- 1 · TITLE -->
+  <section class="slide active center">
+    <div class="kicker">Deeptech GigaHack 2026 · Marcaj Challenge</div>
+    <h1>Vineyard AI Field Intelligence</h1>
+    <div class="accentbar" style="margin-inline:auto"></div>
+    <p class="lead" style="max-width:820px">
+      From raw drone orthomosaic to annotations, measurements and an optimized field
+      route — one automated pipeline over <span class="hl">311 GeoTIFF tiles</span>.
+    </p>
+    <div class="members">
+      <div class="member"><b>Luka Oniani</b><span>Team Lead</span></div>
+      <div class="member"><b>Nikoloz Pankvelashvili</b><span>Member</span></div>
+      <div class="member"><b>Saba Beradze</b><span>Member</span></div>
+    </div>
+    <div style="margin-top:26px" class="tag blue">Team Wizzy</div>
+  </section>
+
+  <!-- 2 · PROBLEM -->
+  <section class="slide">
+    <div class="badge">Business case</div>
+    <div class="kicker">The problem</div>
+    <h2>Vineyards are inspected by hand — slowly, and at scale it doesn't work</h2>
+    <div class="accentbar"></div>
+    <div class="row" style="flex:1; gap:26px">
+      <div class="col">
+        <p class="muted" style="margin-bottom:16px">
+          A single site here is <span class="hl">~145 ha</span> of planting, delivered as
+          <span class="hl">311 tiles</span> at 2.5&nbsp;cm/px. A person walking that to map every
+          plant, row, gap and piece of waste is days of work — and it's stale the moment it's done.
+        </p>
+        <ul>
+          <li>Government needs <b>consistent, auditable</b> block &amp; row records across a region.</li>
+          <li>Farmers need to know <b>where the problems are</b> and the shortest way to reach them.</li>
+          <li>Manual annotation doesn't scale and isn't repeatable between inspectors.</li>
+        </ul>
+      </div>
+      <div class="col">
+        <div class="card" style="height:100%; justify-content:center">
+          <div class="kicker" style="margin-bottom:14px">User stories</div>
+          <ol class="stories">
+            <li><b>Government inspector</b> — "Show me every block &amp; row with consistent IDs, flag missing plantings, and give me one route that visits them all and returns to start."</li>
+            <li><b>Farmer / owner</b> — "Give me the shortest walk to collect waste and check disrupted rows, so I spend minutes in the field, not a day."</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+    <div class="footer"><span>Wizzy · Vineyard AI</span><span><span class="dot">02</span> / 08</span></div>
+  </section>
+
+  <!-- 3 · SOLUTION OVERVIEW -->
+  <section class="slide">
+    <div class="kicker">The solution</div>
+    <h2>One pipeline: imagery in → decisions out</h2>
+    <div class="accentbar"></div>
+    <p class="muted" style="margin-bottom:18px; max-width:900px">
+      A reproducible, code-driven pipeline that produces the exact scored deliverables —
+      CVAT annotations, per-block measurements, and a validated walking route — plus an
+      interactive web map for two user roles.
+    </p>
+    <div class="grid4" style="flex:1">
+      <div class="card">
+        <span class="tag green">Rows</span>
+        <h3>Trained YOLO</h3>
+        <p>Fine-tuned YOLO11-seg detects vine rows, stitched into consistent row IDs across tile edges.</p>
+      </div>
+      <div class="card">
+        <span class="tag blue">Canopy</span>
+        <h3>Per-plant CV</h3>
+        <p>ExG vegetation index + watershed splits touching plants into individual canopy polygons.</p>
+      </div>
+      <div class="card">
+        <span class="tag amber">Inter-row</span>
+        <h3>Derived geometry</h3>
+        <p>Walkable strips between adjacent rows, minus canopy — cover class from green fraction.</p>
+      </div>
+      <div class="card">
+        <span class="tag violet">Route</span>
+        <h3>Graph + TSP</h3>
+        <p>Grid nav-graph over walkable ground, nearest-neighbour + 2-opt, returns to start.</p>
+      </div>
+    </div>
+    <div class="footer"><span>Wizzy · Vineyard AI</span><span><span class="dot">03</span> / 08</span></div>
+  </section>
+
+  <!-- 4 · ARCHITECTURE / ALGORITHMS -->
+  <section class="slide">
+    <div class="kicker">Architecture · what runs inside</div>
+    <h2>ML where it earns its keep, deterministic CV where it's reliable</h2>
+    <div class="accentbar"></div>
+    <div class="grid2" style="flex:1">
+      <div class="card">
+        <span class="tag green">Neural network</span>
+        <h3>Row detection — YOLO11-seg</h3>
+        <p style="color:var(--ink); font-size:15px">
+          Single-class <span class="hl">row</span> model, fine-tuned on the exact-domain
+          example tiles + hand-picked negative tiles (forest, field, village) to kill false
+          positives. Tiled 640-px inference composited back to full 2048 tiles.
+        </p>
+      </div>
+      <div class="card">
+        <span class="tag blue">Classical CV</span>
+        <h3>Canopy — ExG + watershed</h3>
+        <p style="color:var(--ink); font-size:15px">
+          Excess-Green index + adaptive threshold isolates foliage; distance-transform
+          watershed separates touching plants into one-polygon-per-vine, per the golden rules.
+        </p>
+      </div>
+      <div class="card">
+        <span class="tag amber">Geometry / binary logic</span>
+        <h3>Global IDs — world-space stitching</h3>
+        <p style="color:var(--ink); font-size:15px">
+          Rows reprojected to EPSG:32635; union-find groups blocks (&lt;5&nbsp;m gap) and
+          stitches collinear row segments across tiles into stable <span class="hl">vineyard_id / row_id</span>.
+        </p>
+      </div>
+      <div class="card">
+        <span class="tag violet">Optimization</span>
+        <h3>Route — NetworkX + 2-opt TSP</h3>
+        <p style="color:var(--ink); font-size:15px">
+          2&nbsp;m nav-grid clipped to passages ∪ inter-row; Dijkstra between targets, then
+          nearest-neighbour + 2-opt. Hard-gated: 100% inside walkable, closed loop.
+        </p>
+      </div>
+    </div>
+    <div class="footer"><span>Wizzy · Vineyard AI</span><span><span class="dot">04</span> / 08</span></div>
+  </section>
+
+  <!-- 5 · DATA PIPELINE -->
+  <section class="slide">
+    <div class="kicker">Data pipeline · GeoTIFF → reports</div>
+    <h2>How data flows through the system</h2>
+    <div class="accentbar"></div>
+    <div class="pipe">
+      <div class="step"><div class="ic">🛰️</div><b>GeoTIFF tiles</b><span>311 tiles · 2048² px · 2.5 cm/px · EPSG:32635</span></div>
+      <div class="arr">→</div>
+      <div class="step"><div class="ic">🧠</div><b>Detect</b><span>rows (YOLO) · canopy (CV) · inter-row</span></div>
+      <div class="arr">→</div>
+      <div class="step"><div class="ic">🌍</div><b>Stitch IDs</b><span>world-space blocks &amp; rows, edge-consistent</span></div>
+      <div class="arr">→</div>
+      <div class="step"><div class="ic">📐</div><b>Measure</b><span>areas &amp; lengths in metres</span></div>
+      <div class="arr">→</div>
+      <div class="step"><div class="ic">📦</div><b>Export</b><span>CVAT XML · CSV · GeoJSON route</span></div>
+    </div>
+    <div class="grid3" style="margin-top:26px; flex:1">
+      <div class="card center">
+        <div class="stat blue">311</div>
+        <div class="stat-lbl">Tiles ingested</div>
+        <p style="text-align:center">Full site, ~145 ha, one command.</p>
+      </div>
+      <div class="card center">
+        <div class="stat green">~4–6s</div>
+        <div class="stat-lbl">Per tile (M1 Pro)</div>
+        <p style="text-align:center">Rows + canopy + inter-row, tiled inference.</p>
+      </div>
+      <div class="card center">
+        <div class="stat amber">4</div>
+        <div class="stat-lbl">Output formats</div>
+        <p style="text-align:center">CVAT 1.1 · measurements.csv · route.geojson · web map.</p>
+      </div>
+    </div>
+    <div class="footer"><span>Wizzy · Vineyard AI</span><span><span class="dot">05</span> / 08</span></div>
+  </section>
+
+  <!-- 6 · DEMO -->
+  <section class="slide center">
+    <div class="kicker">Live demo</div>
+    <h2>Interactive map — shown live</h2>
+    <div class="accentbar" style="margin-inline:auto"></div>
+    <p class="lead" style="max-width:760px; margin-bottom:26px">
+      Detections and both routes on the real orthomosaic, verified against the organizer's
+      ground-truth example tiles.
+    </p>
+    <div class="row" style="max-width:940px; width:100%; gap:20px">
+      <div class="col card">
+        <span class="tag blue" style="align-self:center">Blue route</span>
+        <h3 style="text-align:center">Government inspector</h3>
+        <p style="text-align:center">Visits inspection targets + waste, returns to start.</p>
+      </div>
+      <div class="col card">
+        <span class="tag red" style="align-self:center; background:rgba(248,113,113,.14); color:var(--red)">Red route</span>
+        <h3 style="text-align:center">Farmer</h3>
+        <p style="text-align:center">Shortest waste-collection walk on the same graph.</p>
+      </div>
+      <div class="col card">
+        <span class="tag green" style="align-self:center">Layers</span>
+        <h3 style="text-align:center">All four classes</h3>
+        <p style="text-align:center">Canopy · rows · inter-row · route, filterable by ID.</p>
+      </div>
+    </div>
+    <p class="muted" style="margin-top:26px; font-size:15px">→ Switching to the live web interface now.</p>
+    <div class="footer"><span>Wizzy · Vineyard AI</span><span><span class="dot">06</span> / 08</span></div>
+  </section>
+
+  <!-- 7 · RESULTS / IMPACT -->
+  <section class="slide">
+    <div class="kicker">Results · verified against ground truth</div>
+    <h2>Numbers we can stand behind</h2>
+    <div class="accentbar"></div>
+    <div class="row" style="flex:1; gap:26px">
+      <div class="col">
+        <div class="grid2">
+          <div class="card center"><div class="stat green">24</div><div class="stat-lbl">Rows detected</div><p style="text-align:center">vs 26 ground truth (r006_c004)</p></div>
+          <div class="card center"><div class="stat blue">26</div><div class="stat-lbl">Inter-row areas</div><p style="text-align:center">vs 25 ground truth</p></div>
+          <div class="card center"><div class="stat amber">162</div><div class="stat-lbl">Canopy polygons</div><p style="text-align:center">per-plant, one tile</p></div>
+          <div class="card center"><div class="stat violet">3,456 m</div><div class="stat-lbl">Route length</div><p style="text-align:center">closed loop · 100% inside walkable</p></div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card" style="height:100%">
+          <div class="kicker" style="margin-bottom:8px">Impact</div>
+          <ul>
+            <li><b>Repeatable &amp; auditable</b> — same code, same rules, every tile gets an answer.</li>
+            <li><b>Minutes, not days</b> — the whole site processes end-to-end in one run.</li>
+            <li><b>Two users, one system</b> — inspector and farmer routes from the same graph.</li>
+            <li><b>Standards-native</b> — CVAT 1.1 + EPSG:32635 GeoJSON, ready for existing GIS tools.</li>
+            <li><b>Reproducible</b> — pinned deps + Dockerfile + committed model weights.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer"><span>Wizzy · Vineyard AI</span><span><span class="dot">07</span> / 08</span></div>
+  </section>
+
+  <!-- 8 · SCALING -->
+  <section class="slide">
+    <div class="kicker">Product scaling to industry</div>
+    <h2>Top&nbsp;5 features to take this to the field</h2>
+    <div class="accentbar"></div>
+    <div class="grid3" style="flex:1; grid-auto-rows:1fr">
+      <div class="card">
+        <span class="tag green">01</span><h3>Neural canopy &amp; waste</h3>
+        <p>Replace classical canopy with a trained instance segmenter and add a waste detector for higher IoU and full-class coverage.</p>
+      </div>
+      <div class="card">
+        <span class="tag blue">02</span><h3>Change detection over time</h3>
+        <p>Compare flights season-to-season — flag new gaps, vine loss and vigor decline automatically.</p>
+      </div>
+      <div class="card">
+        <span class="tag amber">03</span><h3>Vine-health &amp; yield layer</h3>
+        <p>Add NDVI/multispectral vigor scoring per row and block for agronomic advisory.</p>
+      </div>
+      <div class="card">
+        <span class="tag violet">04</span><h3>Fleet &amp; drone routing</h3>
+        <p>Extend the router to ground robots / spray drones with turn and battery constraints.</p>
+      </div>
+      <div class="card">
+        <span class="tag green">05</span><h3>Regional dashboard &amp; API</h3>
+        <p>Multi-site portal for regulators: subsidy compliance, block registry, exportable reports.</p>
+      </div>
+      <div class="card center" style="background:linear-gradient(150deg,#12202b,#0d151c); border-color:#274050">
+        <div class="stat blue" style="font-size:34px">Wizzy</div>
+        <p style="text-align:center; margin-top:8px">From one hackathon site<br>to a regional platform.</p>
+      </div>
+    </div>
+    <div class="footer"><span>Wizzy · Vineyard AI</span><span><span class="dot">08</span> / 08</span></div>
+  </section>
+
+</div>
+
+<div id="nav">
+  <button onclick="go(-1)">‹ Prev</button>
+  <span id="pageno">1 / 8</span>
+  <button onclick="go(1)">Next ›</button>
+</div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  const dotsWrap=document.getElementById('dots');
+  const pageno=document.getElementById('pageno');
+  let i=0;
+  slides.forEach((_,k)=>{const d=document.createElement('i'); d.onclick=()=>show(k); dotsWrap.appendChild(d);});
+  const dots=[...dotsWrap.children];
+  function show(n){
+    i=Math.max(0,Math.min(slides.length-1,n));
+    slides.forEach((s,k)=>s.classList.toggle('active',k===i));
+    dots.forEach((d,k)=>d.classList.toggle('on',k===i));
+    pageno.textContent=(i+1)+' / '+slides.length;
+  }
+  function go(d){show(i+d);}
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' ')go(1);
+    if(e.key==='ArrowLeft'||e.key==='PageUp')go(-1);
+    if(e.key==='Home')show(0); if(e.key==='End')show(slides.length-1);
+  });
+  // Scale the fixed 1280x720 stage to fit any window without distortion
+  const stage=document.getElementById('stage');
+  function fit(){
+    const pad=40;
+    const s=Math.min((innerWidth-pad)/1280,(innerHeight-pad)/720);
+    stage.style.transform='scale('+s+')';
+  }
+  addEventListener('resize',fit); fit(); show(0);
+</script>
+</body>
+</html>

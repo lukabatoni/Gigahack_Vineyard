@@ -223,6 +223,11 @@ let nav = null; // {nodes:[[lng,lat]], edges, start_node}
 let navAdj = null; // adjacency: navAdj[i] = [[neighbor, weight_m], ...]
 let measRows = []; // cached measurements.csv rows (to re-render route lengths)
 
+// route persona panel
+const WALK_KMH = 4; // problem statement's assumed walking speed
+let routeMode = "route"; // "route" (inspector) | "route_farmer" (farmer)
+let routeStats = null; // { route:{...,nInsp,nWaste}, route_farmer:{...} }
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 async function fetchJSON(url) {
   try {
@@ -690,12 +695,7 @@ function renderMeasurements(rows) {
   } else {
     add("measurements.csv not found", "");
   }
-
-  head("Routes");
-  const rb = routeLength("route"),
-    rf = routeLength("route_farmer");
-  add("Inspector (blue)", rb == null ? "pending" : num(rb) + " m");
-  add("Farmer (red)", rf == null ? "pending" : num(rf) + " m");
+  // route lengths now live in the "Route" section (renderRoutePanel)
 }
 
 // ── map controls: reset view + zoom indicator ─────────────────────────────────
@@ -1187,12 +1187,16 @@ function computeRoute(startLL, targetLLs) {
   for (let a = 1; a < nodes.length; a++)
     if (isFinite(d0[nodes[a]])) keep.push(a);
   if (keep.length <= 1)
-    return { latlngs: [[startLL.lat, startLL.lng]], length_m: 0, visited: 0 };
+    return { latlngs: [[startLL.lat, startLL.lng]], length_m: 0, visited: 0, naive_m: 0 };
 
   const m = keep.length;
   const D = Array.from({ length: m }, () => new Float64Array(m));
   for (let a = 0; a < m; a++)
     for (let b = 0; b < m; b++) D[a][b] = solved[keep[a]].dist[nodes[keep[b]]];
+  // "separate return trips" baseline (Visual Journey p.7): visit each target from
+  // START and come back individually → 2 × Σ dist(START→target)
+  let naive_m = 0;
+  for (let a = 1; a < m; a++) naive_m += 2 * D[0][a];
   const order = tspOrder(D); // indices into keep
 
   // stitch node paths between consecutive terminals
@@ -1211,7 +1215,7 @@ function computeRoute(startLL, targetLLs) {
   let length = 0;
   for (let i = 0; i < latlngs.length - 1; i++)
     length += haversine(latlngs[i], latlngs[i + 1]);
-  return { latlngs, length_m: length, visited: m - 1 };
+  return { latlngs, length_m: length, visited: m - 1, naive_m };
 }
 
 // targets from data already on the map
@@ -1286,10 +1290,129 @@ function solveRoutes() {
   const startLL = startMarker ? startMarker.getLatLng() : defaultStart;
   const insp = inspectionTargets();
   const waste = wasteTargets();
-  drawComputedRoute("route", computeRoute(startLL, insp.concat(waste))); // blue inspector
-  drawComputedRoute("route_farmer", computeRoute(startLL, waste)); // red farmer
+  const blue = computeRoute(startLL, insp.concat(waste)); // inspector
+  const red = computeRoute(startLL, waste); // farmer
+  routeStats = {
+    route: { ...blue, nInsp: insp.length, nWaste: waste.length },
+    route_farmer: { ...red, nInsp: 0, nWaste: waste.length },
+  };
+  drawComputedRoute("route", blue);
+  drawComputedRoute("route_farmer", red);
+  applyRouteMode(); // show the active persona's route, hide the other
   renderMeasurements(measRows);
+  renderRoutePanel();
   renderToggles();
+}
+
+// show only the active persona's route on the map
+function applyRouteMode() {
+  for (const key of ["route", "route_farmer"]) {
+    const s = store[key];
+    if (!s || !s.layer) continue;
+    const show = key === routeMode;
+    if (show && !map.hasLayer(s.layer)) s.layer.addTo(map);
+    if (!show && map.hasLayer(s.layer)) map.removeLayer(s.layer);
+  }
+}
+
+// trip summary for the active route (distance, walking time, targets, efficiency)
+function renderRoutePanel() {
+  const el = document.getElementById("route-summary");
+  if (!el) return;
+  const st = routeStats && routeStats[routeMode];
+  if (!st || !(st.length_m > 0)) {
+    el.innerHTML =
+      routeMode === "route_farmer"
+        ? '<div class="muted">No waste to collect — farmer route is empty.</div>'
+        : '<div class="muted">No reachable targets yet.</div>';
+    return;
+  }
+  const km = st.length_m / 1000;
+  const mins = Math.max(1, Math.round((km / WALK_KMH) * 60));
+  const row = (k, v, sub) =>
+    `<div class="rs-row"><span class="rs-k">${k}</span>` +
+    `<span class="rs-v">${v}${sub ? ` <span class="rs-sub">${sub}</span>` : ""}</span></div>`;
+  const tgt =
+    routeMode === "route"
+      ? `${st.nInsp + st.nWaste} <span class="rs-sub">(${st.nInsp} insp · ${st.nWaste} waste)</span>`
+      : `${st.nWaste} <span class="rs-sub">waste</span>`;
+  const rows = [
+    row("Distance", km.toFixed(2) + " km"),
+    row("Walking time", "~" + mins + " min", "@ 4 km/h"),
+    row("Targets", tgt),
+  ];
+  if (st.naive_m > st.length_m && st.visited >= 2) {
+    const pct = Math.round(((st.naive_m - st.length_m) / st.naive_m) * 100);
+    rows.push(
+      `<div class="rs-save"><b>Saves ${pct}%</b> vs. separate trips` +
+        `<div class="rs-sub">${Math.round(st.naive_m)} m → ${Math.round(st.length_m)} m</div></div>`,
+    );
+  }
+  el.innerHTML = rows.join("");
+}
+
+function setRouteMode(mode) {
+  routeMode = mode;
+  document.querySelectorAll("#mode-seg .seg-btn").forEach((b) =>
+    b.classList.toggle("active", b.dataset.mode === mode),
+  );
+  applyRouteMode();
+  renderRoutePanel();
+  renderToggles();
+}
+
+// ── export ──────────────────────────────────────────────────────────────────
+function downloadBlob(name, text, type) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function exportRoute() {
+  const st = routeStats && routeStats[routeMode];
+  if (!st || !(st.length_m > 0)) return;
+  const name = routeMode === "route" ? "inspector" : "farmer";
+  const fc = {
+    type: "FeatureCollection",
+    features: [{
+      type: "Feature",
+      properties: { name, length_m: Math.round(st.length_m * 100) / 100 },
+      geometry: { type: "LineString", coordinates: st.latlngs.map(([lat, lng]) => [lng, lat]) },
+    }],
+  };
+  downloadBlob(`${name}_route.geojson`, JSON.stringify(fc), "application/geo+json");
+}
+function exportCSV() {
+  const a = document.createElement("a");
+  a.href = DATA + "measurements.csv";
+  a.download = "measurements.csv";
+  a.click();
+}
+
+// ── welcome / onboarding ──────────────────────────────────────────────────────
+function showWelcome() {
+  const w = document.getElementById("welcome");
+  if (w) w.classList.add("show");
+}
+function hideWelcome() {
+  const w = document.getElementById("welcome");
+  if (w) w.classList.remove("show");
+  try { localStorage.setItem("vineyard_welcomed", "1"); } catch (e) {}
+}
+
+function setupRoutePanel() {
+  document.querySelectorAll("#mode-seg .seg-btn").forEach((b) => {
+    b.onclick = () => setRouteMode(b.dataset.mode);
+  });
+  const dr = document.getElementById("dl-route");
+  if (dr) dr.onclick = exportRoute;
+  const dc = document.getElementById("dl-csv");
+  if (dc) dc.onclick = exportCSV;
+  const hb = document.getElementById("help-btn");
+  if (hb) hb.onclick = showWelcome;
+  const ws = document.getElementById("welcome-start");
+  if (ws) ws.onclick = hideWelcome;
 }
 
 // ── boot ──────────────────────────────────────────────────────────────────────
@@ -1323,6 +1446,7 @@ async function boot() {
 
   addControls();
   renderLegend(); // #legend lives in the floating map control created above
+  setupRoutePanel();
   await setupStartPicker();
   await loadNavGraph();
   solveRoutes(); // compute the routes for the default START on load
@@ -1345,6 +1469,19 @@ async function boot() {
     }, 800);
   } else {
     document.getElementById("banner").style.display = "block";
+  }
+
+  // dismiss the loading splash (brief min-show so it doesn't flash), then show
+  // the welcome modal on first visit
+  const splash = document.getElementById("splash");
+  if (splash) {
+    setTimeout(() => {
+      splash.classList.add("hide");
+      setTimeout(() => splash.remove(), 600);
+      let seen = false;
+      try { seen = !!localStorage.getItem("vineyard_welcomed"); } catch (e) {}
+      if (!seen) showWelcome();
+    }, 350);
   }
 }
 

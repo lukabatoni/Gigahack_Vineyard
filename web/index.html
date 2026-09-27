@@ -4,19 +4,63 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Vineyard AI — Field Map</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="stylesheet"
         href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <div id="splash">
+    <div class="splash-inner">
+      <svg class="brand-mark lg" viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="1" y="1" width="30" height="30" rx="8" fill="#1b2129" stroke="#2a3340"/>
+        <g stroke="#3fae6a" stroke-width="2" stroke-linecap="round">
+          <line x1="7" y1="25" x2="21" y2="7"/>
+          <line x1="12" y1="26" x2="26" y2="8"/>
+          <line x1="17" y1="27" x2="28" y2="13"/>
+        </g>
+        <circle cx="10.3" cy="10.3" r="2.6" fill="#ffdc00" stroke="#14181d" stroke-width="1"/>
+      </svg>
+      <div class="splash-name">Vineyard <span>AI</span></div>
+      <div class="splash-tag">Field mapping &amp; route planning</div>
+      <div class="splash-bar"><span></span></div>
+    </div>
+  </div>
+
   <div id="sidebar">
-    <h1>Vineyard AI</h1>
-    <p class="sub">Field map · EPSG:32635 → WGS84</p>
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="1" y="1" width="30" height="30" rx="8" fill="#1b2129" stroke="#2a3340"/>
+        <g stroke="#3fae6a" stroke-width="2" stroke-linecap="round">
+          <line x1="7" y1="25" x2="21" y2="7"/>
+          <line x1="12" y1="26" x2="26" y2="8"/>
+          <line x1="17" y1="27" x2="28" y2="13"/>
+        </g>
+        <circle cx="10.3" cy="10.3" r="2.6" fill="#ffdc00" stroke="#14181d" stroke-width="1"/>
+      </svg>
+      <div>
+        <h1>Vineyard <span>AI</span></h1>
+        <p class="sub">Field mapping &amp; route planning</p>
+      </div>
+    </div>
 
     <section>
       <h2>Layers</h2>
       <div id="layer-toggles"></div>
+    </section>
+
+    <section>
+      <h2>Route <button type="button" id="help-btn" class="help-btn" title="About this tool">?</button></h2>
+      <div class="seg" id="mode-seg">
+        <button type="button" data-mode="route" class="seg-btn active">Inspector</button>
+        <button type="button" data-mode="route_farmer" class="seg-btn">Farmer</button>
+      </div>
+      <div id="route-summary" class="route-summary"></div>
+      <div class="route-export">
+        <button type="button" id="dl-route" class="btn btn-sub">⭳ Route (GeoJSON)</button>
+        <button type="button" id="dl-csv" class="btn btn-sub">⭳ Measurements (CSV)</button>
+      </div>
     </section>
 
     <section>
@@ -42,6 +86,28 @@
 
   <div id="map"></div>
   <div id="banner">No map data found in <code>data/</code>. Run <code>python3 pipeline/export_web_data.py</code> to generate it.</div>
+
+  <div id="welcome">
+    <div class="welcome-card">
+      <svg class="brand-mark lg" viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="1" y="1" width="30" height="30" rx="8" fill="#1b2129" stroke="#2a3340"/>
+        <g stroke="#3fae6a" stroke-width="2" stroke-linecap="round">
+          <line x1="7" y1="25" x2="21" y2="7"/>
+          <line x1="12" y1="26" x2="26" y2="8"/>
+          <line x1="17" y1="27" x2="28" y2="13"/>
+        </g>
+        <circle cx="10.3" cy="10.3" r="2.6" fill="#ffdc00" stroke="#14181d" stroke-width="1"/>
+      </svg>
+      <h2>Vineyard <span>AI</span></h2>
+      <p class="welcome-lead">An annotated map of the vineyard with an optimised walking route for field inspection and waste collection.</p>
+      <ul class="welcome-list">
+        <li><b>Pick a START</b> — use “Change start point” (bottom-left) to drop it anywhere walkable.</li>
+        <li><b>Choose a mode</b> — <b>Inspector</b> visits dead vines &amp; waste; <b>Farmer</b> collects waste.</li>
+        <li><b>Explore</b> — toggle layers and click any object for its IDs &amp; attributes.</li>
+      </ul>
+      <button type="button" id="welcome-start" class="btn welcome-btn">Get started</button>
+    </div>
+  </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>

@@ -75,8 +75,10 @@ L.control
 
 // scale bar
 L.control
-  .scale({ metric: true, imperial: false, position: "bottomright" })
+  .scale({ metric: true, imperial: false, position: "topright" })
   .addTo(map);
+
+map.attributionControl.setPosition("bottomright");
 
 // ── layer catalogue (order = draw order / legend order) ──────────────────────
 // kind: polygon | line | route | point | context
@@ -314,7 +316,8 @@ function buildLayer(cfg, data) {
       matchFilter(cfg, f.properties || {}) &&
       (!cfg.subFilter || cfg.subFilter(f.properties || {})),
     style: (f) => styleFor(cfg, f),
-    onEachFeature: (f, l) => l.on("click", () => showInfo(cfg, f.properties || {})),
+    onEachFeature: (f, l) =>
+      l.on("click", () => showInfo(cfg, f.properties || {})),
   });
 }
 
@@ -386,7 +389,8 @@ function renderLegend() {
     h.className = "legend-title";
     h.textContent = title;
     box.appendChild(h);
-    const pretty = (k) => k.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+    const pretty = (k) =>
+      k.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
     const addRow = (key, color) => {
       const row = document.createElement("div");
       row.className = "legend-row";
@@ -438,7 +442,9 @@ function makeDropdown(rootId, onChange) {
         value = o.value;
         btn.textContent = o.label;
         root.classList.remove("open");
-        menu.querySelectorAll(".dd-opt").forEach((x) => x.classList.toggle("sel", x === el));
+        menu
+          .querySelectorAll(".dd-opt")
+          .forEach((x) => x.classList.toggle("sel", x === el));
         onChange(value);
       };
       menu.appendChild(el);
@@ -446,15 +452,27 @@ function makeDropdown(rootId, onChange) {
   }
   btn.onclick = (e) => {
     e.stopPropagation();
-    document.querySelectorAll(".dd.open").forEach((d) => d !== root && d.classList.remove("open"));
+    document
+      .querySelectorAll(".dd.open")
+      .forEach((d) => d !== root && d.classList.remove("open"));
     root.classList.toggle("open");
   };
-  return { setOptions, set(v, label) { value = v; btn.textContent = label; } };
+  return {
+    setOptions,
+    set(v, label) {
+      value = v;
+      btn.textContent = label;
+    },
+  };
 }
 document.addEventListener("click", () =>
-  document.querySelectorAll(".dd.open").forEach((d) => d.classList.remove("open")));
+  document
+    .querySelectorAll(".dd.open")
+    .forEach((d) => d.classList.remove("open")),
+);
 
-let ddBlock = null, ddRow = null;
+let ddBlock = null,
+  ddRow = null;
 function populateFilters() {
   const blocks = new Set();
   const blockRows = {}; // vineyard_id -> Set(row_id)
@@ -465,7 +483,9 @@ function populateFilters() {
       const p = f.properties || {};
       if (p.vineyard_id) blocks.add(p.vineyard_id);
       if (p.vineyard_id && p.row_id)
-        (blockRows[p.vineyard_id] = blockRows[p.vineyard_id] || new Set()).add(p.row_id);
+        (blockRows[p.vineyard_id] = blockRows[p.vineyard_id] || new Set()).add(
+          p.row_id,
+        );
     }
   }
   const opt = (v) => ({ value: v, label: v || "All" });
@@ -474,7 +494,10 @@ function populateFilters() {
     filterBlock = v;
     filterRow = "";
     ddRow.set("", "All");
-    ddRow.setOptions([opt(""), ...(v && blockRows[v] ? [...blockRows[v]].sort(natSort).map(opt) : [])]);
+    ddRow.setOptions([
+      opt(""),
+      ...(v && blockRows[v] ? [...blockRows[v]].sort(natSort).map(opt) : []),
+    ]);
     rebuildFilterable();
     if (filterBlock) zoomToFeatures((p) => p.vineyard_id === filterBlock);
     else resetView(); // back to "All" → restore the initial view
@@ -500,13 +523,19 @@ function zoomToFeatures(pred) {
       if (f.geometry && pred(f.properties || {})) feats.push(f);
   }
   if (!feats.length) return;
-  const b = L.geoJSON({ type: "FeatureCollection", features: feats }).getBounds();
+  const b = L.geoJSON({
+    type: "FeatureCollection",
+    features: feats,
+  }).getBounds();
   if (b.isValid()) map.fitBounds(b, { padding: [20, 20] });
 }
 
 // restore the exact initial view captured on load (snapshot below)
 function resetView() {
-  if (savedView) { map.setView(savedView.center, savedView.zoom); return; }
+  if (savedView) {
+    map.setView(savedView.center, savedView.zoom);
+    return;
+  }
   if (!dataBounds || !dataBounds.isValid()) return;
   map.fitBounds(dataBounds, { padding: [30, 30] });
   const fitZoom = map.getBoundsZoom(dataBounds);
@@ -691,7 +720,8 @@ function addControls() {
   const legend = L.control({ position: "bottomright" });
   legend.onAdd = () => {
     const d = L.DomUtil.create("div", "map-legend");
-    d.innerHTML = '<div class="map-legend-title">Legend</div><div id="legend"></div>';
+    d.innerHTML =
+      '<div class="map-legend-title">Legend</div><div id="legend"></div>';
     L.DomEvent.disableClickPropagation(d);
     L.DomEvent.disableScrollPropagation(d);
     return d;
@@ -711,7 +741,9 @@ function addControls() {
       '<div id="info" class="info"></div>';
     L.DomEvent.disableClickPropagation(d);
     L.DomEvent.disableScrollPropagation(d);
-    d.querySelector(".map-info-close").onclick = () => { d.style.display = "none"; };
+    d.querySelector(".map-info-close").onclick = () => {
+      d.style.display = "none";
+    };
     return d;
   };
   info.addTo(map);
@@ -750,29 +782,39 @@ function addControls() {
 function pointInRing(pt, ring) {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
-    if ((yi > pt[1]) !== (yj > pt[1]) &&
-        pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi) + xi) inside = !inside;
+    const xi = ring[i][0],
+      yi = ring[i][1],
+      xj = ring[j][0],
+      yj = ring[j][1];
+    if (
+      yi > pt[1] !== yj > pt[1] &&
+      pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi) + xi
+    )
+      inside = !inside;
   }
   return inside;
 }
 function pointInPolygon(pt, poly) {
   if (!pointInRing(pt, poly[0])) return false;
-  for (let k = 1; k < poly.length; k++) if (pointInRing(pt, poly[k])) return false;
+  for (let k = 1; k < poly.length; k++)
+    if (pointInRing(pt, poly[k])) return false;
   return true;
 }
 function geomContains(geom, pt) {
   if (!geom) return false;
   if (geom.type === "Polygon") return pointInPolygon(pt, geom.coordinates);
-  if (geom.type === "MultiPolygon") return geom.coordinates.some((p) => pointInPolygon(pt, p));
+  if (geom.type === "MultiPolygon")
+    return geom.coordinates.some((p) => pointInPolygon(pt, p));
   return false;
 }
 // valid = inside the study area, NOT in a forbidden zone, NOT on a vine canopy
 function inVineyard(latlng) {
   const pt = [latlng.lng, latlng.lat];
   if (vineyardGeom && !geomContains(vineyardGeom, pt)) return false;
-  for (const f of forbiddenFeatures) if (geomContains(f.geometry, pt)) return false;
-  for (const f of canopyFeatures) if (geomContains(f.geometry, pt)) return false;
+  for (const f of forbiddenFeatures)
+    if (geomContains(f.geometry, pt)) return false;
+  for (const f of canopyFeatures)
+    if (geomContains(f.geometry, pt)) return false;
   return true;
 }
 
@@ -784,16 +826,30 @@ function buildNoGoLayer() {
   if (vineyardGeom && vineyardGeom.type === "Polygon") {
     holes.push(vineyardGeom.coordinates[0].map((c) => [c[1], c[0]]));
   } else if (vineyardGeom && vineyardGeom.type === "MultiPolygon") {
-    for (const poly of vineyardGeom.coordinates) holes.push(poly[0].map((c) => [c[1], c[0]]));
+    for (const poly of vineyardGeom.coordinates)
+      holes.push(poly[0].map((c) => [c[1], c[0]]));
   }
-  const world = [[-89, -179], [-89, 179], [89, 179], [89, -179]];
+  const world = [
+    [-89, -179],
+    [-89, 179],
+    [89, 179],
+    [89, -179],
+  ];
   L.polygon([world, ...holes], {
-    stroke: false, fillColor: "#ff2d2d", fillOpacity: 0.3, interactive: false,
+    stroke: false,
+    fillColor: "#ff2d2d",
+    fillOpacity: 0.3,
+    interactive: false,
   }).addTo(group);
   const fd = store.forbidden && store.forbidden.data;
   if (fd) {
     L.geoJSON(fd, {
-      style: { color: "#ff2d2d", weight: 1, fillColor: "#ff2d2d", fillOpacity: 0.45 },
+      style: {
+        color: "#ff2d2d",
+        weight: 1,
+        fillColor: "#ff2d2d",
+        fillOpacity: 0.45,
+      },
       interactive: false,
     }).addTo(group);
   }
@@ -838,7 +894,9 @@ function flashHint(msg) {
   clearTimeout(hintTimer);
   hintTimer = setTimeout(() => {
     h.classList.remove("warn");
-    if (picking) h.textContent = "Click inside the vineyard to place the start · Esc to cancel";
+    if (picking)
+      h.textContent =
+        "Click inside the vineyard to place the start · Esc to cancel";
     else h.style.display = "none";
   }, 1900);
 }
@@ -846,14 +904,19 @@ function flashHint(msg) {
 function updateStartReadout() {
   const el = document.getElementById("start-coords");
   const ll = startMarker ? startMarker.getLatLng() : defaultStart;
-  if (!ll) { el.textContent = ""; return; }
-  const tag = movedStart ? "start (moved)" : "start (default · scored)";
+  if (!ll) {
+    el.textContent = "";
+    return;
+  }
+  const tag = movedStart ? "start (moved)" : "start (default)";
   el.innerHTML = `<span class="k">${tag}</span><br>lat ${ll.lat.toFixed(6)}, lon ${ll.lng.toFixed(6)}`;
 }
 
 function onStartChanged() {
   updateStartReadout();
-  document.getElementById("reset-start").style.display = movedStart ? "" : "none";
+  document.getElementById("reset-start").style.display = movedStart
+    ? ""
+    : "none";
   solveRoutes(); // recompute blue/red routes from the new START (client-side)
 }
 
@@ -876,7 +939,8 @@ function enterPick() {
   b.classList.add("active");
   const h = document.getElementById("start-hint");
   h.style.display = "block";
-  h.textContent = "Click inside the vineyard to place the start · Esc to cancel";
+  h.textContent =
+    "Click inside the vineyard to place the start · Esc to cancel";
   map.closePopup();
   map.getContainer().classList.add("picking");
   hideAnnotationsForPick();
@@ -898,9 +962,14 @@ function exitPick() {
   map.off("click", onPickClick);
   document.removeEventListener("keydown", onPickKey);
 }
-function onPickKey(e) { if (e.key === "Escape") exitPick(); }
+function onPickKey(e) {
+  if (e.key === "Escape") exitPick();
+}
 function onPickClick(e) {
-  if (!inVineyard(e.latlng)) { flashHint("⚠ Place the start inside the vineyard area"); return; }
+  if (!inVineyard(e.latlng)) {
+    flashHint("⚠ Place the start inside the vineyard area");
+    return;
+  }
   exitPick(); // restore layers first, then recompute so toggles stay in sync
   moveStart(e.latlng, false);
 }
@@ -918,7 +987,8 @@ async function setupStartPicker() {
     defaultStart = L.latLng(47.1230335, 28.7073776);
   }
   const sa = await fetchJSON(DATA + "study_area.geojson");
-  if (sa && sa.features && sa.features.length) vineyardGeom = sa.features[0].geometry;
+  if (sa && sa.features && sa.features.length)
+    vineyardGeom = sa.features[0].geometry;
   const fd = store.forbidden && store.forbidden.data;
   forbiddenFeatures = fd && fd.features ? fd.features : [];
   const cd = store.canopy && store.canopy.data;
@@ -927,7 +997,8 @@ async function setupStartPicker() {
 
   // the ONE start marker = the yellow dot the user already saw (store.start.layer)
   startMarker = (store.start && store.start.layer) || null;
-  document.getElementById("pick-start").onclick = () => (picking ? exitPick() : enterPick());
+  document.getElementById("pick-start").onclick = () =>
+    picking ? exitPick() : enterPick();
   document.getElementById("reset-start").onclick = () => resetStart();
   updateStartReadout();
 }
@@ -951,19 +1022,42 @@ async function loadNavGraph() {
 
 // binary min-heap of (node, dist) for Dijkstra
 class MinHeap {
-  constructor() { this.a = []; }
-  get size() { return this.a.length; }
+  constructor() {
+    this.a = [];
+  }
+  get size() {
+    return this.a.length;
+  }
   push(node, d) {
-    const a = this.a; a.push([d, node]); let i = a.length - 1;
-    while (i > 0) { const p = (i - 1) >> 1; if (a[p][0] <= a[i][0]) break;[a[p], a[i]] = [a[i], a[p]]; i = p; }
+    const a = this.a;
+    a.push([d, node]);
+    let i = a.length - 1;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (a[p][0] <= a[i][0]) break;
+      [a[p], a[i]] = [a[i], a[p]];
+      i = p;
+    }
   }
   pop() {
-    const a = this.a, top = a[0], last = a.pop();
-    if (a.length) { a[0] = last; let i = 0; const n = a.length;
-      for (;;) { let l = 2 * i + 1, r = l + 1, s = i;
+    const a = this.a,
+      top = a[0],
+      last = a.pop();
+    if (a.length) {
+      a[0] = last;
+      let i = 0;
+      const n = a.length;
+      for (;;) {
+        let l = 2 * i + 1,
+          r = l + 1,
+          s = i;
         if (l < n && a[l][0] < a[s][0]) s = l;
         if (r < n && a[r][0] < a[s][0]) s = r;
-        if (s === i) break;[a[s], a[i]] = [a[i], a[s]]; i = s; } }
+        if (s === i) break;
+        [a[s], a[i]] = [a[i], a[s]];
+        i = s;
+      }
+    }
     return top; // [d, node]
   }
 }
@@ -973,40 +1067,58 @@ function dijkstra(src) {
   const dist = new Float64Array(n).fill(Infinity);
   const prev = new Int32Array(n).fill(-1);
   dist[src] = 0;
-  const h = new MinHeap(); h.push(src, 0);
+  const h = new MinHeap();
+  h.push(src, 0);
   while (h.size) {
     const [du, u] = h.pop();
     if (du > dist[u]) continue;
     for (const [v, w] of navAdj[u]) {
       const nd = du + w;
-      if (nd < dist[v]) { dist[v] = nd; prev[v] = u; h.push(v, nd); }
+      if (nd < dist[v]) {
+        dist[v] = nd;
+        prev[v] = u;
+        h.push(v, nd);
+      }
     }
   }
   return { dist, prev };
 }
 
-function nodePath(prev, dst) { // node indices dst..src via prev
-  const out = []; let u = dst;
-  while (u !== -1) { out.push(u); u = prev[u]; }
+function nodePath(prev, dst) {
+  // node indices dst..src via prev
+  const out = [];
+  let u = dst;
+  while (u !== -1) {
+    out.push(u);
+    u = prev[u];
+  }
   return out.reverse();
 }
 
 function snapNode(ll) {
   const cs = Math.cos((ll.lat * Math.PI) / 180);
-  let best = -1, bd = Infinity;
+  let best = -1,
+    bd = Infinity;
   for (let i = 0; i < nav.nodes.length; i++) {
     const dlng = (nav.nodes[i][0] - ll.lng) * cs;
     const dlat = nav.nodes[i][1] - ll.lat;
     const d = dlng * dlng + dlat * dlat;
-    if (d < bd) { bd = d; best = i; }
+    if (d < bd) {
+      bd = d;
+      best = i;
+    }
   }
   return best;
 }
 
-function haversine(a, b) { // a,b = [lat,lng] → metres
-  const R = 6371000, rad = Math.PI / 180;
-  const dlat = (b[0] - a[0]) * rad, dlng = (b[1] - a[1]) * rad;
-  const s = Math.sin(dlat / 2) ** 2 +
+function haversine(a, b) {
+  // a,b = [lat,lng] → metres
+  const R = 6371000,
+    rad = Math.PI / 180;
+  const dlat = (b[0] - a[0]) * rad,
+    dlng = (b[1] - a[1]) * rad;
+  const s =
+    Math.sin(dlat / 2) ** 2 +
     Math.cos(a[0] * rad) * Math.cos(b[0] * rad) * Math.sin(dlng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(s));
 }
@@ -1016,21 +1128,39 @@ function haversine(a, b) { // a,b = [lat,lng] → metres
 function tspOrder(D) {
   const n = D.length;
   if (n <= 1) return [0, 0];
-  const seen = new Set([0]); const order = [0]; let cur = 0;
+  const seen = new Set([0]);
+  const order = [0];
+  let cur = 0;
   while (seen.size < n) {
-    let best = -1, bd = Infinity;
-    for (let j = 0; j < n; j++) if (!seen.has(j) && D[cur][j] < bd) { bd = D[cur][j]; best = j; }
-    order.push(best); seen.add(best); cur = best;
+    let best = -1,
+      bd = Infinity;
+    for (let j = 0; j < n; j++)
+      if (!seen.has(j) && D[cur][j] < bd) {
+        bd = D[cur][j];
+        best = j;
+      }
+    order.push(best);
+    seen.add(best);
+    cur = best;
   }
   order.push(0);
-  const len = (o) => { let s = 0; for (let i = 0; i < o.length - 1; i++) s += D[o[i]][o[i + 1]]; return s; };
+  const len = (o) => {
+    let s = 0;
+    for (let i = 0; i < o.length - 1; i++) s += D[o[i]][o[i + 1]];
+    return s;
+  };
   let improved = true;
   while (improved) {
     improved = false;
     for (let i = 1; i < order.length - 2; i++)
       for (let k = i + 1; k < order.length - 1; k++) {
-        const cand = order.slice(0, i).concat(order.slice(i, k + 1).reverse(), order.slice(k + 1));
-        if (len(cand) + 1e-9 < len(order)) { order.splice(0, order.length, ...cand); improved = true; }
+        const cand = order
+          .slice(0, i)
+          .concat(order.slice(i, k + 1).reverse(), order.slice(k + 1));
+        if (len(cand) + 1e-9 < len(order)) {
+          order.splice(0, order.length, ...cand);
+          improved = true;
+        }
       }
   }
   return order;
@@ -1042,38 +1172,45 @@ function computeRoute(startLL, targetLLs) {
   const termLL = [startLL, ...targetLLs];
   const termNode = termLL.map(snapNode);
   // dedupe terminals sharing a node (keep START at 0)
-  const uniq = []; const seenNode = new Set();
+  const uniq = [];
+  const seenNode = new Set();
   for (let i = 0; i < termNode.length; i++) {
     if (seenNode.has(termNode[i])) continue;
-    seenNode.add(termNode[i]); uniq.push(i);
+    seenNode.add(termNode[i]);
+    uniq.push(i);
   }
   const nodes = uniq.map((i) => termNode[i]);
   const solved = nodes.map((s) => dijkstra(s));
   // reachable-from-START subset
   const d0 = solved[0].dist;
   const keep = [0];
-  for (let a = 1; a < nodes.length; a++) if (isFinite(d0[nodes[a]])) keep.push(a);
-  if (keep.length <= 1) return { latlngs: [[startLL.lat, startLL.lng]], length_m: 0, visited: 0 };
+  for (let a = 1; a < nodes.length; a++)
+    if (isFinite(d0[nodes[a]])) keep.push(a);
+  if (keep.length <= 1)
+    return { latlngs: [[startLL.lat, startLL.lng]], length_m: 0, visited: 0 };
 
   const m = keep.length;
   const D = Array.from({ length: m }, () => new Float64Array(m));
-  for (let a = 0; a < m; a++) for (let b = 0; b < m; b++)
-    D[a][b] = solved[keep[a]].dist[nodes[keep[b]]];
+  for (let a = 0; a < m; a++)
+    for (let b = 0; b < m; b++) D[a][b] = solved[keep[a]].dist[nodes[keep[b]]];
   const order = tspOrder(D); // indices into keep
 
   // stitch node paths between consecutive terminals
   const seq = [];
   for (let i = 0; i < order.length - 1; i++) {
-    const a = keep[order[i]], b = keep[order[i + 1]];
+    const a = keep[order[i]],
+      b = keep[order[i + 1]];
     let seg = nodePath(solved[a].prev, nodes[b]);
-    if (seq.length && seg.length && seq[seq.length - 1] === seg[0]) seg = seg.slice(1);
+    if (seq.length && seg.length && seq[seq.length - 1] === seg[0])
+      seg = seg.slice(1);
     for (const nd of seg) seq.push(nd);
   }
   const latlngs = [[startLL.lat, startLL.lng]];
   for (const nd of seq) latlngs.push([nav.nodes[nd][1], nav.nodes[nd][0]]);
   latlngs.push([startLL.lat, startLL.lng]); // return to START
   let length = 0;
-  for (let i = 0; i < latlngs.length - 1; i++) length += haversine(latlngs[i], latlngs[i + 1]);
+  for (let i = 0; i < latlngs.length - 1; i++)
+    length += haversine(latlngs[i], latlngs[i + 1]);
   return { latlngs, length_m: length, visited: m - 1 };
 }
 
@@ -1083,26 +1220,43 @@ function midOfLine(coords) {
   return L.latLng(m[1], m[0]);
 }
 function inspectionTargets() {
-  const s = store.rows, out = [];
+  const s = store.rows,
+    out = [];
   if (!s || !s.data) return out;
   for (const f of s.data.features) {
     if ((f.properties || {}).row_structure !== "disrupted") continue;
-    const g = f.geometry; if (!g) continue;
-    const c = g.type === "LineString" ? g.coordinates
-      : g.type === "MultiLineString" ? g.coordinates[0] : null;
+    const g = f.geometry;
+    if (!g) continue;
+    const c =
+      g.type === "LineString"
+        ? g.coordinates
+        : g.type === "MultiLineString"
+          ? g.coordinates[0]
+          : null;
     if (c && c.length) out.push(midOfLine(c));
   }
   return out;
 }
 function wasteTargets() {
-  const s = store.waste, out = [];
+  const s = store.waste,
+    out = [];
   if (!s || !s.data) return out;
   for (const f of s.data.features) {
-    const g = f.geometry; if (!g) continue;
-    const ring = g.type === "Polygon" ? g.coordinates[0]
-      : g.type === "MultiPolygon" ? g.coordinates[0][0] : null;
+    const g = f.geometry;
+    if (!g) continue;
+    const ring =
+      g.type === "Polygon"
+        ? g.coordinates[0]
+        : g.type === "MultiPolygon"
+          ? g.coordinates[0][0]
+          : null;
     if (!ring) continue;
-    let x = 0, y = 0; for (const c of ring) { x += c[0]; y += c[1]; }
+    let x = 0,
+      y = 0;
+    for (const c of ring) {
+      x += c[0];
+      y += c[1];
+    }
     out.push(L.latLng(y / ring.length, x / ring.length));
   }
   return out;
@@ -1113,13 +1267,16 @@ function drawComputedRoute(key, result) {
   const s = store[key];
   const wasOn = s && s.layer ? map.hasLayer(s.layer) : !!cfg.on;
   if (s && s.layer && map.hasLayer(s.layer)) map.removeLayer(s.layer);
-  let layer = null, length = 0;
+  let layer = null,
+    length = 0;
   if (result && result.latlngs.length >= 2 && result.length_m > 0) {
     layer = L.polyline(result.latlngs, styleFor(cfg));
     length = result.length_m;
   }
   s.layer = layer;
-  s.data = { features: [{ properties: { length_m: Math.round(length * 100) / 100 } }] };
+  s.data = {
+    features: [{ properties: { length_m: Math.round(length * 100) / 100 } }],
+  };
   s.count = layer ? 1 : 0;
   if (layer && wasOn) layer.addTo(map);
 }
@@ -1140,11 +1297,13 @@ async function boot() {
   const allFeatures = [];
   for (const cfg of LAYERS) {
     const data = await fetchJSON(DATA + cfg.file);
-    const count = !data || !data.features
-      ? 0
-      : cfg.subFilter
-        ? data.features.filter((f) => cfg.subFilter(f.properties || {})).length
-        : data.features.length;
+    const count =
+      !data || !data.features
+        ? 0
+        : cfg.subFilter
+          ? data.features.filter((f) => cfg.subFilter(f.properties || {}))
+              .length
+          : data.features.length;
     const layer = data ? buildLayer(cfg, data) : null;
     store[cfg.key] = { cfg, data, layer, count };
     if (layer && cfg.on && count > 0 && !cfg.hidden) layer.addTo(map);
@@ -1181,7 +1340,9 @@ async function boot() {
     // open a bit closer than the full-extent fit (keeps the fit's centre)
     map.setZoom(Math.min(MAX_ZOOM, fitZoom + DEFAULT_ZOOM_BOOST));
     // snapshot the settled initial view so reset / vineyard→All return to exactly it
-    setTimeout(() => { savedView = { center: map.getCenter(), zoom: map.getZoom() }; }, 800);
+    setTimeout(() => {
+      savedView = { center: map.getCenter(), zoom: map.getZoom() };
+    }, 800);
   } else {
     document.getElementById("banner").style.display = "block";
   }

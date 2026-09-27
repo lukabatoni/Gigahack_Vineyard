@@ -134,5 +134,12 @@ body { display: flex; }
 .info b { color: #fff; }
 .info .k { color: #8a939c; }
 
+/* required attribution (CC BY 4.0 + Esri/OSM terms) kept but de-emphasised */
+.leaflet-control-attribution {
+  font-size: 9px; background: rgba(20, 24, 29, .45); color: #b7bfc7;
+  padding: 0 5px; border-radius: 4px 0 0 0;
+}
+.leaflet-control-attribution a { color: #9ab7d6; }
+
 .leaflet-popup-content { font-size: 12px; line-height: 1.5; }
 .leaflet-popup-content b { color: #14181d; }

@@ -20,6 +20,9 @@ pipeline/runs/
 pipeline/output/
 pipeline/riseholme_yolo/
 
+# ── Generated imagery pyramid (~856 MB; rebuild via pipeline/build_imagery_tiles.py) ──
+web/data/imagery/
+
 # ── Python cruft ────────────────────────────────────
 __pycache__/
 *.pyc

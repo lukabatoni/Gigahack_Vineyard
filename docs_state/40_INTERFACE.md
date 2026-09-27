@@ -184,8 +184,22 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done
   (only georeferenced data present on this machine); exporter reused as-is on the
   real 311-tile model output.
 - **2026-09-26** View constraints (app.js top-of-file constants):
-  - **Hard zoom cap** `MAX_ZOOM=19` (Esri imagery runs out past ~z19). Soft
-    alternative: raise `MAX_ZOOM`, keep `MAX_NATIVE_ZOOM=19` → blurry-but-never-blank.
+  - **Zoom cap RAISED to `MAX_ZOOM=22`** (was 19). Keep `MAX_NATIVE_ZOOM=19` for
+    Esri + OSM (`maxNativeZoom:19`) → past z19 the satellite basemap upscales
+    (blurry-but-never-blank) instead of hard-walling. Superseded the earlier hard
+    cap because users need to zoom in on annotations. Real detail past z19 comes
+    from our own orthomosaic overlay (below), not the satellite.
+  - **Own orthomosaic overlay (2.5 cm/px).** `pipeline/build_imagery_tiles.py`
+    pre-renders the 311 `01_tiles/*.tif` (EPSG:32635) into an XYZ pyramid
+    `web/data/imagery/{z}/{x}/{y}.png` (EPSG:3857, RGBA, black no-data →
+    transparent). Added in app.js as a toggleable **overlay** (`L.control.layers`
+    2nd arg), `zIndex:250`, `maxNativeZoom=21`, on by default → sits above the
+    satellite (transparent outside the survey), below the vector layers. This is
+    the real high-res basemap; sharper than any satellite provider at any zoom.
+    Pure rasterio+Pillow (no GDAL CLI); reprojects only intersecting sources per
+    output tile. Verified: z17 tiles render true imagery + correct edge
+    transparency. Pyramid z13–21 (~? tiles); regenerate with
+    `python3 pipeline/build_imagery_tiles.py --minzoom 13 --maxzoom 21`.
   - **Pan/zoom-out lock:** `setMaxBounds(bounds.pad(0.3))` + `minZoom = fitZoom-1`,
     both derived from the loaded data extent → **auto-expands** when real 311-tile
     data replaces the examples (no code change). `maxBoundsViscosity=0.85`.
@@ -195,9 +209,18 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ## 8. Findings / gotchas (append-only)
 
-- On THIS machine the 311 tiles (`01_tiles/`) and source orthomosaic (`04_source/`)
-  are NOT present — only the 2 example tiles in `05_examples/...`. Full-dataset
-  export must run where the tiles live.
+- **UPDATE 2026-09-26 (later):** the **311 tiles ARE now present** in `01_tiles/`
+  (extracted from the 5 supplied ZIPs; flat layout, all `siret3_*.tif` in the dir
+  root, not in part-subdirs). Confirmed 311 files, EPSG:32635, 3-band uint8 RGB,
+  0.025 m/px, extent ≈1.74×1.79 km (lon 28.7003–28.7238, lat 47.1131–47.1296).
+  This unblocked the orthomosaic overlay (section 7) and the full 311-tile export.
+- `file://` GOTCHA: opening `web/index.html` directly gives "No map data found" —
+  `fetch()` is blocked on the file: protocol. **Must serve over HTTP**
+  (`cd web && python3 -m http.server 8765` → `http://localhost:8765/`).
+- Imagery tiler timing (M1, rasterio): low zooms are slow *per tile* (a z13 tile
+  intersects all 311 sources); z13–17 = 63 tiles in ~2.6 min. High zooms are cheap
+  per tile (1–4 sources each) but numerous. No GDAL CLI on this machine — only
+  `rasterio`/`PIL`/`affine`; `mercantile` absent (tile math done by hand).
 - System Python 3.9.6 has rasterio 1.4.3 / shapely 2.0.7 / pyproj 3.6.1 installed
   (no venv on this machine). `explore_tiles.py` has an import-time `mkdir` on a
   hardcoded `/Users/luka-sap/...` path → do NOT `import explore_tiles`; the

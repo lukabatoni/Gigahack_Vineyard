@@ -20,6 +20,9 @@ import argparse
 import time
 from pathlib import Path
 
+import numpy as np
+import cv2
+import rasterio
 from ultralytics import YOLO
 
 from rows_postproc import BEST, predict_tile
@@ -29,6 +32,39 @@ from assign_ids import assign_global_ids
 
 TILES_ROOT = Path("/Users/luka-sap/Desktop/Gigahack/01_tiles")
 OUT_DIR = Path("/Users/luka-sap/Desktop/Gigahack/pipeline/output")
+ANNOTATED_DIR = Path("/Users/luka-sap/Desktop/Gigahack/annotated_tiles")
+
+
+def write_annotated_tile(tile_path, objs, out_dir):
+    """Draw the tile's row polylines on the imagery and save as a georeferenced
+    GeoTIFF (same CRS/transform), filename + '_annotated.tif'.
+
+    Reads via rasterio to preserve the profile, draws with cv2, writes back
+    through rasterio so the output stays a valid EPSG:32635 GeoTIFF."""
+    with rasterio.open(tile_path) as src:
+        profile = src.profile
+        # bands -> HxWxC uint8 RGB for drawing (tiles are 3-band RGB)
+        arr = src.read()                      # (bands, H, W)
+    n_bands = arr.shape[0]
+    rgb = np.transpose(arr[:3], (1, 2, 0)).copy()      # (H, W, 3)
+    if rgb.dtype != np.uint8:
+        rgb = np.clip(rgb, 0, 255).astype(np.uint8)
+
+    for r in objs.get("row", []):
+        pts = np.array(r["points"], dtype=np.int32)
+        cv2.polylines(rgb, [pts], isClosed=False, color=(255, 0, 0), thickness=6)
+        rid = r.get("row_id", "")
+        if rid and len(pts):
+            cv2.putText(rgb, rid, tuple(pts[0]), cv2.FONT_HERSHEY_SIMPLEX,
+                        1.2, (255, 255, 0), 3, cv2.LINE_AA)
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{tile_path.stem}_annotated.tif"
+    out_bands = np.transpose(rgb, (2, 0, 1))           # (3, H, W)
+    profile.update(count=3, dtype="uint8")
+    with rasterio.open(out_path, "w", **profile) as dst:
+        dst.write(out_bands)
+    return out_path
 
 
 def discover_tiles(tiles_root):
@@ -37,8 +73,9 @@ def discover_tiles(tiles_root):
 
 
 def run(tiles, model, conf=0.25):
-    """Run the model on each tile -> objects_by_tile dict."""
+    """Run the model on each tile -> (objects_by_tile, tile_paths)."""
     objects_by_tile = {}
+    tile_paths = {}
     t0 = time.time()
     for i, tile in enumerate(tiles, 1):
         rows, (w, h) = predict_tile(model, tile, conf=conf)
@@ -46,9 +83,10 @@ def run(tiles, model, conf=0.25):
             "width": w, "height": h,
             "vineyard": [], "interrow_area": [], "waste": [], "row": rows,
         }
+        tile_paths[tile.name] = tile
         print(f"[{i}/{len(tiles)}] {tile.name}: {len(rows)} rows "
               f"({(time.time() - t0) / i:.1f}s/tile avg)")
-    return objects_by_tile
+    return objects_by_tile, tile_paths
 
 
 def main():
@@ -59,6 +97,9 @@ def main():
     ap.add_argument("--conf", type=float, default=0.25)
     ap.add_argument("--tag", default="all",
                     help="suffix for output filenames (e.g. 'sample')")
+    ap.add_argument("--no-annotated", action="store_true",
+                    help="skip writing annotated GeoTIFF tiles")
+    ap.add_argument("--annotated-dir", default=str(ANNOTATED_DIR))
     args = ap.parse_args()
 
     tiles = discover_tiles(args.tiles_dir)
@@ -68,13 +109,19 @@ def main():
         print(f"Limiting to first {len(tiles)} tiles (dry run)")
 
     model = YOLO(str(BEST))
-    objects_by_tile = run(tiles, model, conf=args.conf)
+    objects_by_tile, tile_paths = run(tiles, model, conf=args.conf)
 
     # Global ID assignment (Task 7): stitch rows across tiles in world space,
     # overwriting the provisional per-tile ids with consistent vineyard_id/row_id.
     tiles_root = Path(args.tiles_dir)
     nb, nr = assign_global_ids(objects_by_tile, tiles_root)
     print(f"Global IDs: {nb} blocks, {nr} stitched rows")
+
+    if not args.no_annotated:
+        ann_dir = Path(args.annotated_dir)
+        for name, objs in objects_by_tile.items():
+            write_annotated_tile(tile_paths[name], objs, ann_dir)
+        print(f"Annotated tiles -> {ann_dir} ({len(objects_by_tile)} files)")
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     xml_out = OUT_DIR / f"annotations_{args.tag}.xml"

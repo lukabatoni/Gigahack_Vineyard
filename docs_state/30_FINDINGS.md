@@ -81,3 +81,35 @@
 - IDs survive tile edges: same block → same `vineyard_id` everywhere; same row → same
   `row_id`. Assign globally BEFORE cutting per tile.
 - Every tile gets an answer (annotate or "No objects in this frame"). Blank = blocked job.
+
+---
+
+## Moldova rows model — trained 2026-09-26 (Colab T4)
+
+- Trained YOLO11s-seg single-class {0: row} on the 2 example tiles (sliced to
+  640px patches, stripe-buffered polylines). Metrics on val patches near-perfect
+  (mAP50 mask 0.979) — but val patches came from the SAME 2 source tiles.
+- Weights: `pipeline/runs/segment/riseholme/weights/best.pt` (single-class 'row').
+  Old Riseholme 2-class weights backed up as `best_riseholme_backup.pt`.
+- Inference path: TILED (auto when names=={'row'}). 2048 tile -> 640 patches ->
+  composite mask union -> directional close (bridge gaps) -> connected components
+  -> per-component PCA centreline -> endpoint-gap collinear merge.
+- **On vineyard example tiles it is EXCELLENT:** every row traced down its centre.
+  Counts: r006_c004 = 26 vs ref 26 (0% err); r021_c012 = 30 vs ref 25 (20% err,
+  a few rows still split by >90px gaps).
+- **CRITICAL GOTCHA — false positives on non-vineyard tiles.** Trained on 2
+  all-vineyard tiles (all-positive patches), the model has never seen forest /
+  ploughed field / grass / village, and HALLUCINATES rows on any parallel texture
+  (tree canopy, soil furrows, grass). Unseen tile r021_c010 (forest+track) -> 92
+  spurious short fragments; r029_c025 (bare field+meadow) -> 65. Many of the 311
+  tiles are non-vineyard, so raw inference will massively inflate row count and
+  hurt axis F1. NEEDS: negative training patches (retrain) and/or a geometric
+  post-filter (min length + parallelism to dominant angle) to suppress junk.
+- Perf: ~3-4 s/tile on Mac (MPS/CPU), 16 patches/tile. 311 tiles ~ 15-20 min.
+
+### UPDATE 2026-09-27 — false positives fixed by geometric filter
+The non-vineyard FP problem (above) is resolved by `_filter_rows()` in
+rows_postproc.py (length + parallelism-to-dominant-angle + straightness, with a
+"<6 rows => emit none" guard). Retraining with negatives did NOT help (mosaic
+diluted the signal). See 20_DECISIONS 2026-09-27. Residual: straight fence/track
+lines on ambiguous field-edge tiles can survive as a few spurious rows — minor.

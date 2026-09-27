@@ -146,3 +146,67 @@
 - Tree/bush false-positives removed via contour-area filter (>MAX_AREA_PX).
 - **Limitation:** cannot reliably separate dormant yellow-brown vines from brown soil
   at 2.5cm/px. This is why we move to a NN.
+
+---
+
+## 2026-09-26 — Trained a Moldova-domain rows model; fixed the assembly pipeline
+
+- **Decision:** replace the Riseholme rows model (failed, 1/25 rows on our domain)
+  with a YOLO11s-seg single-class 'row' model fine-tuned on our 2 example tiles
+  (sliced + heavily augmented). Rationale: Riseholme UAV imagery != Moldova ortho
+  tiles; the example tiles are exact-domain ground truth.
+- **Decision:** for the single-class model, run TILED inference (640 patches over
+  the 2048 tile, composite masks) — a 640-trained model barely fires on a full
+  2048 image. Auto-selected when model names == {'row'}.
+- **Decision:** each connected component of the composited mask IS one row; fit a
+  per-component PCA centreline (bin along major axis, perp-mean per bin). This
+  REPLACES the old centroid-clustering `_assemble_rows` for the tiled path, which
+  collapsed 35 clean stripes into 3. `_assemble_rows` kept only for the legacy
+  whole-tile (Riseholme) branch.
+- **Decision:** merge collinear split segments with a conservative endpoint-gap
+  rule (nearest endpoints within 90px + heading within 12deg). Rejected the
+  perp-band union-find approach — it zig-zagged across neighbouring rows.
+- **OPEN:** false positives on non-vineyard tiles (see 30_FINDINGS). Need negatives
+  in training and/or a geometric post-filter before running all 311.
+
+---
+
+## 2026-09-26 — Retrain rows model WITH negatives (chosen: "best" path)
+
+- **Decision:** fix non-vineyard false positives by RETRAINING with negatives
+  (not just a geometric filter). Added 68 empty-label patches sliced from 13
+  hand-picked non-vineyard challenge tiles (forest/orchard, bare field/meadow,
+  village) via `pipeline/add_negatives.py`. Dataset now 50 positive + 68 negative
+  = 118 patches. `rows_yolo.zip` rebuilt (79 MB).
+- Negative tiles picked from a 25-tile contact sheet (output/CONTACT_SHEET.png):
+  r016_c010, r028_c017, r022_c016 (forest); r026_c031, r027_c023, r030_c019,
+  r030_c032, r032_c028, r033_c028, r034_c029, r029_c024 (field); r017_c010,
+  r031_c029 (buildings). YOLO treats an empty .txt label as a true negative.
+- Retrain on Colab with the SAME notebook/params as before (single-class 'row').
+  Then re-validate on the SAME 2 example tiles (expect counts to hold) AND on the
+  non-vineyard unseen tiles r021_c010 / r029_c025 (expect near-zero rows now).
+
+---
+
+## 2026-09-27 — Geometric row filter (negatives-retrain did NOT fix FPs)
+
+- **Finding:** retraining with 68 negatives did NOT suppress non-vineyard false
+  positives — identical 92/65 raw counts on forest/field tiles. Likely cause:
+  mosaic=1.0 stitches positives into nearly every training image, diluting the
+  pure-negative signal. Weights kept as best_rows_neg.pt (md5 0c713ac2), and it
+  IS the negatives model (verified by hash + timestamp, not a stale file).
+- **Decision:** suppress FPs with a GEOMETRIC post-filter in rows_postproc.py
+  `_filter_rows()` instead of more training. Thresholds set from measured
+  distributions (real rows: len>1000px, angdev~0deg, straight; junk: len~80px,
+  angdev~17deg, kinked). Keep a polyline only if:
+    - path length > 300 px,
+    - end-to-end heading within 15 deg of tile's length-weighted dominant angle,
+    - straightness (chord/path) >= 0.90.
+  Plus a guard: if < 6 rows survive, emit NOTHING (tile isn't a vineyard).
+- **Validated:** VINE r021 30->23 (8% err vs ref 25), r006 26->24 (8% vs 26);
+  NONV forest r021_c010 92->0, scrub r014_c009 90->0; field r029_c025 65->9
+  (residual: a straight track/fence line is geometrically identical to a row —
+  acceptable on ambiguous edge tiles). Scale spot-check (12 tiles): vineyards
+  17-21 rows, non-vineyards mostly 0. Filter confirmed NOT killing real rows
+  (r014_c009 is genuinely scrub, not vineyard — raw 90 were all kinked junk).
+- **This unblocks the full 311-tile E2E run.**

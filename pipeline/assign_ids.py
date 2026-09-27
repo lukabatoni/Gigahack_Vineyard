@@ -33,8 +33,10 @@ from shapely.geometry import LineString
 from measurements import pixels_to_world, tile_transform
 
 BLOCK_GAP_M = 5.0      # docs: plantings closer than 5 m are the same block
-ROW_MERGE_M = 4.0      # collinear segment endpoints closer than this = same row
+ROW_PERP_M = 1.0       # perp offset from the shared centreline (rows are ~2 m apart)
+ROW_MERGE_M = 4.0      # max end-to-end GAP along the line to still be one row
 ROW_ANGLE_TOL_DEG = 20.0
+MIN_ROWS_PER_BLOCK = 3  # docs: a vineyard block has >=3 rows; fewer = FP fragment
 
 
 class _UF:
@@ -86,6 +88,34 @@ def _angle_close(a, b, tol_rad):
     return d <= tol_rad
 
 
+def _same_rowline(si, sj, perp_tol, gap_tol):
+    """True if segments si, sj are two pieces of ONE physical row.
+
+    A row is a single straight centreline. Two segments belong to it only if
+    the SECOND lies on the FIRST's infinite line (perpendicular offset small)
+    AND the along-line gap between them is small. Merely being close (di<=4 m)
+    is NOT enough: adjacent parallel rows are ~2 m apart and would chain-merge
+    the whole block into one row. We test perpendicular offset instead.
+    """
+    xi, yi = si["line"].coords[0]
+    xj0, yj0 = sj["line"].coords[0]
+    xj1, yj1 = sj["line"].coords[-1]
+    a = si["ang"]
+    d = np.array([np.cos(a), np.sin(a)])       # along-row unit
+    nrm = np.array([-np.sin(a), np.cos(a)])    # perpendicular unit
+    for (px, py) in ((xj0, yj0), (xj1, yj1)):
+        off = abs((px - xi) * nrm[0] + (py - yi) * nrm[1])
+        if off > perp_tol:
+            return False
+    # along-line gap: distance between the two segments' spans on axis d
+    ti = sorted((0.0, (si["line"].coords[-1][0] - xi) * d[0]
+                 + (si["line"].coords[-1][1] - yi) * d[1]))
+    tj = sorted(((xj0 - xi) * d[0] + (yj0 - yi) * d[1],
+                 (xj1 - xi) * d[0] + (yj1 - yi) * d[1]))
+    gap = max(tj[0] - ti[1], ti[0] - tj[1], 0.0)
+    return gap <= gap_tol
+
+
 def assign_global_ids(objects_by_tile, tiles_dir):
     """Mutates objects_by_tile in place: fills vineyard_id + row_id on every row.
     Returns (n_blocks, n_rows)."""
@@ -110,15 +140,34 @@ def assign_global_ids(objects_by_tile, tiles_dir):
                 continue
             if not _angle_close(segs[i]["ang"], segs[j]["ang"], tol):
                 continue
-            # collinear test: each segment's endpoints lie near the other's line
-            di = segs[i]["line"].distance(segs[j]["line"])
-            if di <= ROW_MERGE_M:
+            # collinear test: j must lie on i's centreline (small perp offset)
+            # AND close end-to-end along it. Symmetric check both directions.
+            if (_same_rowline(segs[i], segs[j], ROW_PERP_M, ROW_MERGE_M)
+                    or _same_rowline(segs[j], segs[i], ROW_PERP_M, ROW_MERGE_M)):
                 row_uf.union(i, j)
 
     # --- label blocks V01.. (stable order by min easting of the block) ---
     block_members = defaultdict(list)
     for i in range(n):
         block_members[block_uf.find(i)].append(i)
+
+    # --- prune false-positive blocks: a real vineyard block has >= MIN_ROWS_PER_BLOCK
+    # distinct stitched rows. Isolated fence/track/furrow segments cluster into
+    # 1-2 row blocks (see 30_FINDINGS) — drop them entirely so they don't inflate
+    # block_count / row_count or pollute the CVAT export + route targets. ---
+    dropped = set()
+    for broot, members in block_members.items():
+        distinct_rows = {row_uf.find(i) for i in members}
+        if len(distinct_rows) < MIN_ROWS_PER_BLOCK:
+            dropped.update(members)
+    if dropped:
+        for tile_name, objs in objects_by_tile.items():
+            drop_idx = {segs[i]["idx"] for i in dropped if segs[i]["tile"] == tile_name}
+            objs["row"] = [r for k, r in enumerate(objs.get("row", []))
+                           if k not in drop_idx]
+        # re-run clustering + labeling on the pruned set for clean, dense IDs
+        return assign_global_ids(objects_by_tile, tiles_dir)
+
     block_order = sorted(block_members,
                          key=lambda r: min(segs[i]["line"].bounds[0] for i in block_members[r]))
     block_vid = {root: f"V{k + 1:02d}" for k, root in enumerate(block_order)}

@@ -248,22 +248,40 @@ function matchFilter(cfg, props) {
   return true;
 }
 
+// turn snake_case codes ("bare_soil") into readable text ("Bare soil")
+function prettyValue(v) {
+  if (v === undefined || v === null || v === "") return v;
+  return String(v)
+    .replace(/_/g, " ")
+    .replace(/^\w/, (c) => c.toUpperCase());
+}
+
+// drop the survey prefix / .tif extension from a tile name so a clicked object
+// shows a clean grid ref ("siret3_r021_c012.tif" -> "Row 021, Col 012")
+function prettyTile(t) {
+  if (!t) return t;
+  const m = String(t).match(/r(\d+)_c(\d+)/i);
+  return m ? `Row ${m[1]}, Col ${m[2]}` : String(t).replace(/\.tif$/i, "");
+}
+
 function popupHTML(cfg, props) {
   const rows = [];
-  const add = (k, v) => {
+  const add = (label, v, pretty) => {
     if (v !== undefined && v !== null && v !== "")
-      rows.push(`<span class="k">${k}:</span> <b>${v}</b>`);
+      rows.push(
+        `<span class="k">${label}:</span> <b>${pretty ? prettyValue(v) : v}</b>`,
+      );
   };
   rows.push(`<b>${cfg.label}</b>`);
-  add("vineyard_id", props.vineyard_id);
-  add("row_id", props.row_id);
-  add("row_structure", props.row_structure);
-  add("interrow_cover", props.interrow_cover);
+  add("Vineyard block", props.vineyard_id);
+  add("Row", props.row_id);
+  add("Row structure", props.row_structure, true);
+  add("Ground cover", props.interrow_cover, true);
   add(
-    "length_m",
-    props.length_m ? Number(props.length_m).toFixed(1) : undefined,
+    "Length",
+    props.length_m ? Number(props.length_m).toFixed(1) + " m" : undefined,
   );
-  add("tile", props.tile);
+  add("Tile", prettyTile(props.tile));
   return rows.join("<br>");
 }
 
@@ -369,7 +387,7 @@ function renderToggles() {
 
     const cnt = document.createElement("span");
     cnt.className = "count";
-    cnt.textContent = present ? s.count : "pending";
+    cnt.textContent = present ? s.count : "0";
 
     row.append(cb, sw, name, cnt);
     box.appendChild(row);
@@ -387,21 +405,19 @@ function renderLegend() {
     for (const f of s.data.features) {
       const v =
         (f.properties || {})[LAYERS.find((l) => l.key === cfgKey).attrKey] ||
-        "(none)";
+        "None";
       counts[v] = (counts[v] || 0) + 1;
     }
     const h = document.createElement("div");
     h.className = "legend-title";
     h.textContent = title;
     box.appendChild(h);
-    const pretty = (k) =>
-      k.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
     const addRow = (key, color) => {
       const row = document.createElement("div");
       row.className = "legend-row";
       row.innerHTML =
         `<span class="swatch" style="background:${color}"></span>` +
-        `<span>${pretty(key)}</span><span class="count">${counts[key]}</span>`;
+        `<span>${prettyValue(key)}</span><span class="count">${counts[key]}</span>`;
       box.appendChild(row);
     };
     for (const key of order) {
@@ -423,7 +439,7 @@ function renderLegend() {
     "unassessable",
   ]);
   if (!box.children.length)
-    box.innerHTML = '<div class="muted">no attribute layers loaded</div>';
+    box.innerHTML = '<div class="muted">No attribute layers loaded</div>';
 }
 
 // ── UI: filters ─────────────────────────────────────────────────────────────
@@ -563,7 +579,7 @@ function tally(cfgKey, attrKey) {
   const out = {};
   if (!s || !s.data) return out;
   for (const f of s.data.features) {
-    const v = (f.properties || {})[attrKey] || "(none)";
+    const v = (f.properties || {})[attrKey] || "None";
     out[v] = (out[v] || 0) + 1;
   }
   return out;
@@ -582,12 +598,13 @@ function renderStats() {
 
   const rs = tally("rows", "row_structure");
   head("Row structure");
-  for (const k of ["regular", "disrupted", "unassessable"]) add(k, rs[k] || 0);
+  for (const k of ["regular", "disrupted", "unassessable"])
+    add(prettyValue(k), rs[k] || 0);
 
   const cov = tally("interrow", "interrow_cover");
-  head("Inter-row cover");
+  head("Ground cover");
   for (const k of ["bare_soil", "mixed", "vegetation", "unassessable"])
-    add(k, cov[k] || 0);
+    add(prettyValue(k), cov[k] || 0);
 
   head("Object counts");
   add("Canopy polygons", (store.canopy && store.canopy.count) || 0);
@@ -602,7 +619,7 @@ function renderStats() {
     if (!s || !s.data) return;
     for (const f of s.data.features) {
       const p = f.properties || {};
-      const vid = p.vineyard_id || "(none)";
+      const vid = p.vineyard_id || "None";
       perBlock[vid] = perBlock[vid] || {
         canopy: 0,
         rows: new Set(),
@@ -619,7 +636,7 @@ function renderStats() {
   bump("waste", "waste");
   const vids = Object.keys(perBlock).sort();
   if (vids.length) {
-    head("Per block (canopy / rows / interrow / waste)");
+    head("Per block (canopy / rows / inter-row / waste)");
     for (const vid of vids) {
       const b = perBlock[vid];
       add(vid, `${b.canopy} / ${b.rows.size} / ${b.interrow} / ${b.waste}`);
@@ -690,7 +707,7 @@ function renderMeasurements(rows) {
     const perBlock = rows.filter((r) => r.metric === "canopy_area");
     if (perBlock.length) {
       head("Per block — canopy m²");
-      for (const r of perBlock) add(r.vineyard_id || "(none)", num(r.value));
+      for (const r of perBlock) add(r.vineyard_id || "None", num(r.value));
     }
   } else {
     add("measurements.csv not found", "");
@@ -767,7 +784,7 @@ function addControls() {
   zoomBox.onAdd = () => {
     const d = L.DomUtil.create("div", "zoom-indicator");
     const upd = () => {
-      d.textContent = "z " + map.getZoom();
+      d.textContent = "Zoom " + map.getZoom();
     };
     map.on("zoomend", upd);
     upd();
@@ -908,8 +925,8 @@ function updateStartReadout() {
     el.textContent = "";
     return;
   }
-  const tag = movedStart ? "start (moved)" : "start (default)";
-  el.innerHTML = `<span class="k">${tag}</span><br>lat ${ll.lat.toFixed(6)}, lon ${ll.lng.toFixed(6)}`;
+  const tag = movedStart ? "Start point (moved)" : "Start point (default)";
+  el.innerHTML = `<span class="k">${tag}</span><br>Lat ${ll.lat.toFixed(6)}, Lon ${ll.lng.toFixed(6)}`;
 }
 
 function onStartChanged() {

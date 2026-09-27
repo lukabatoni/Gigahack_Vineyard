@@ -210,3 +210,34 @@
   17-21 rows, non-vineyards mostly 0. Filter confirmed NOT killing real rows
   (r014_c009 is genuinely scrub, not vineyard — raw 90 were all kinked junk).
 - **This unblocks the full 311-tile E2E run.**
+
+---
+
+## 2026-09-27 — Row-stitch fix + full-stack detection on a verified demo region
+
+- **Row-stitch bug fixed (assign_ids.py):** the row union-find merged any two
+  parallel segments within 4 m — but adjacent rows are ~2 m apart, so whole
+  blocks collapsed into ONE row_id (e.g. one id absorbed 425 polylines / 21
+  tiles). Replaced the proximity test with a shared-centreline test
+  (`_same_rowline`): a segment joins a row only if its endpoints sit within
+  ROW_PERP_M=1.0 m of the other's infinite line AND the along-line gap <=4 m.
+  Validated: each example tile now yields ~24 rows (was ~1-3).
+- **Decision (demo strategy):** rather than chase all 311 tiles, fully annotate
+  the 9-tile region around the two GROUND-TRUTH example tiles (r006_c004 +
+  its 3 on-grid edge neighbours; r021_c012 + its 4). This region is verifiable
+  against the provided annotations.xml — ideal for the pitch + a credible slice
+  of scored deliverables. Run: `run_pipeline.py --tiles-list <9 stems> --tag demo9`.
+- **Full stack wired:** rows (trained YOLO) + canopy (segment_canopy.py, classical
+  ExG+watershed) + inter-row (NEW pipeline/interrow.py: strips between adjacent
+  rows minus canopy, cover class from ExG green fraction). Canopy vineyard_id set
+  from row-block footprints in world space (assign_ids._assign_canopy_vids).
+  Waste left EMPTY — both example tiles have 0 waste in ground truth, so
+  "verify none present" is correct, not a gap.
+- **Verified vs ground truth (r006_c004):** rows 24 vs GT 26 (~8% under), canopy
+  162 vs GT 251 (classical CV under-splits touching plants), interrow 26 vs GT 25.
+  Overlay output/VERIFY_r006_c004.png shows rows matching almost exactly; canopy
+  polygons correctly on vines (not over soil/whole-row). Web map + measurements.csv
+  now show all layers on the demo region (3 blocks, 131 rows, 2271 canopies,
+  267 interrow, 6.3 km rows, 855 m2 canopy, 15268 m2 interrow).
+- **Known limit:** canopy is classical CV, not a neural instance segmenter — the
+  challenge requires an NN model for full credit; rows already use trained YOLO.

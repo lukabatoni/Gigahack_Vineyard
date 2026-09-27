@@ -28,7 +28,8 @@ from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Point
+from shapely.ops import unary_union
 
 from measurements import pixels_to_world, tile_transform
 
@@ -199,7 +200,48 @@ def assign_global_ids(objects_by_tile, tiles_dir):
         row["vineyard_id"] = vid
         row["row_id"] = rid
 
+    # --- tag canopy polygons with their block's vineyard_id ---
+    # Each block's footprint = buffered union of its row lines (rows span the
+    # planting). A canopy centroid inside a footprint gets that block's id; if it
+    # sits outside every footprint (edge plants), snap to the nearest block.
+    block_hull = {}
+    for broot in block_order:
+        lines = [segs[i]["line"] for i in block_members[broot]]
+        block_hull[block_vid[broot]] = unary_union(lines).buffer(BLOCK_GAP_M)
+    _assign_canopy_vids(objects_by_tile, tiles_dir, block_hull)
+
     return len(block_order), len(row_members)
+
+
+def _assign_canopy_vids(objects_by_tile, tiles_dir, block_hull):
+    """Set vineyard_id on every canopy polygon from the block footprints."""
+    if not block_hull:
+        return
+    tiles_dir = Path(tiles_dir)
+    for tile_name, objs in objects_by_tile.items():
+        canopies = objs.get("vineyard", [])
+        if not canopies:
+            continue
+        tif = tiles_dir / tile_name
+        if not tif.exists():
+            found = list(tiles_dir.rglob(tile_name))
+            if not found:
+                continue
+            tif = found[0]
+        transform, _ = tile_transform(tif)
+        for c in canopies:
+            world = pixels_to_world(c["points"], transform)
+            if len(world) < 3:
+                c["vineyard_id"] = ""
+                continue
+            cx = sum(p[0] for p in world) / len(world)
+            cy = sum(p[1] for p in world) / len(world)
+            pt = Point(cx, cy)
+            inside = [vid for vid, hull in block_hull.items() if hull.contains(pt)]
+            if inside:
+                c["vineyard_id"] = inside[0]
+            else:
+                c["vineyard_id"] = min(block_hull, key=lambda v: block_hull[v].distance(pt))
 
 
 if __name__ == "__main__":

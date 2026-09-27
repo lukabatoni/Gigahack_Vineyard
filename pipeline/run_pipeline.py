@@ -29,6 +29,8 @@ from rows_postproc import BEST, predict_tile
 from cvat_writer import write_cvat_xml
 from measurements import compute_measurements, write_csv
 from assign_ids import assign_global_ids
+from segment_canopy import segment_tile
+from interrow import derive_interrow
 
 TILES_ROOT = Path("/Users/luka-sap/Desktop/Gigahack/01_tiles")
 OUT_DIR = Path("/Users/luka-sap/Desktop/Gigahack/pipeline/output")
@@ -50,6 +52,16 @@ def write_annotated_tile(tile_path, objs, out_dir):
     if rgb.dtype != np.uint8:
         rgb = np.clip(rgb, 0, 255).astype(np.uint8)
 
+    for o in objs.get("interrow_area", []):
+        pts = np.array(o["points"], dtype=np.int32)
+        if len(pts) >= 3:
+            cv2.polylines(rgb, [pts], isClosed=True, color=(0, 200, 255), thickness=2)
+
+    for o in objs.get("vineyard", []):
+        pts = np.array(o["points"], dtype=np.int32)
+        if len(pts) >= 3:
+            cv2.polylines(rgb, [pts], isClosed=True, color=(0, 255, 0), thickness=2)
+
     for r in objs.get("row", []):
         pts = np.array(r["points"], dtype=np.int32)
         cv2.polylines(rgb, [pts], isClosed=False, color=(255, 0, 0), thickness=6)
@@ -67,25 +79,35 @@ def write_annotated_tile(tile_path, objs, out_dir):
     return out_path
 
 
-def discover_tiles(tiles_root):
-    """All *.tif tiles across the 5 part directories, sorted by name."""
-    return sorted(Path(tiles_root).rglob("siret3_*.tif"))
+def discover_tiles(tiles_root, stems=None):
+    """All *.tif tiles across the 5 part directories, sorted by name.
+
+    If `stems` is given (e.g. ['r006_c004', 'siret3_r005_c004']), keep only tiles
+    whose filename contains one of those stems — lets us run a small named subset.
+    """
+    tiles = sorted(Path(tiles_root).rglob("siret3_*.tif"))
+    if stems:
+        stems = [s if s.startswith("siret3_") else f"siret3_{s}" for s in stems]
+        wanted = set(stems)
+        tiles = [t for t in tiles if t.stem in wanted]
+    return tiles
 
 
-def run(tiles, model, conf=0.25):
+def run(tiles, model, conf=0.25, do_canopy=True):
     """Run the model on each tile -> (objects_by_tile, tile_paths)."""
     objects_by_tile = {}
     tile_paths = {}
     t0 = time.time()
     for i, tile in enumerate(tiles, 1):
         rows, (w, h) = predict_tile(model, tile, conf=conf)
+        canopy = segment_tile(tile) if do_canopy else []
         objects_by_tile[tile.name] = {
             "width": w, "height": h,
-            "vineyard": [], "interrow_area": [], "waste": [], "row": rows,
+            "vineyard": canopy, "interrow_area": [], "waste": [], "row": rows,
         }
         tile_paths[tile.name] = tile
-        print(f"[{i}/{len(tiles)}] {tile.name}: {len(rows)} rows "
-              f"({(time.time() - t0) / i:.1f}s/tile avg)")
+        print(f"[{i}/{len(tiles)}] {tile.name}: {len(rows)} rows, "
+              f"{len(canopy)} canopies ({(time.time() - t0) / i:.1f}s/tile avg)")
     return objects_by_tile, tile_paths
 
 
@@ -97,25 +119,38 @@ def main():
     ap.add_argument("--conf", type=float, default=0.25)
     ap.add_argument("--tag", default="all",
                     help="suffix for output filenames (e.g. 'sample')")
+    ap.add_argument("--tiles-list", default=None,
+                    help="comma-separated tile stems to run (e.g. r006_c004,r005_c004)")
+    ap.add_argument("--no-canopy", action="store_true",
+                    help="skip canopy segmentation (rows only)")
     ap.add_argument("--no-annotated", action="store_true",
                     help="skip writing annotated GeoTIFF tiles")
     ap.add_argument("--annotated-dir", default=str(ANNOTATED_DIR))
     args = ap.parse_args()
 
-    tiles = discover_tiles(args.tiles_dir)
-    print(f"Discovered {len(tiles)} tiles under {args.tiles_dir}")
+    stems = [s.strip() for s in args.tiles_list.split(",")] if args.tiles_list else None
+    tiles = discover_tiles(args.tiles_dir, stems=stems)
+    print(f"Discovered {len(tiles)} tiles under {args.tiles_dir}"
+          + (f" (filtered to {len(stems)} stems)" if stems else ""))
     if args.limit:
         tiles = tiles[:args.limit]
         print(f"Limiting to first {len(tiles)} tiles (dry run)")
 
     model = YOLO(str(BEST))
-    objects_by_tile, tile_paths = run(tiles, model, conf=args.conf)
+    objects_by_tile, tile_paths = run(tiles, model, conf=args.conf,
+                                      do_canopy=not args.no_canopy)
 
     # Global ID assignment (Task 7): stitch rows across tiles in world space,
     # overwriting the provisional per-tile ids with consistent vineyard_id/row_id.
+    # Also tags each canopy polygon with its block's vineyard_id.
     tiles_root = Path(args.tiles_dir)
     nb, nr = assign_global_ids(objects_by_tile, tiles_root)
     print(f"Global IDs: {nb} blocks, {nr} stitched rows")
+
+    # Inter-row areas: derived per block from stitched rows minus canopy (Golden
+    # Rule 4: canopy and inter-row never overlap). Fills objects_by_tile in place.
+    n_ir = derive_interrow(objects_by_tile, tiles_root)
+    print(f"Inter-row areas: {n_ir}")
 
     if not args.no_annotated:
         ann_dir = Path(args.annotated_dir)

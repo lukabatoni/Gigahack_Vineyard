@@ -58,7 +58,7 @@
 ### 2026-09-26 — Route requirements VERIFIED against 03_docs PDFs (no hallucination)
 - Source: `Vineyard_AI_Field_Challenge_description.pdf` (p2, p4, p5) + `Vineyard_AI_annotation_rules.pdf` (p5, p6, p7).
 - **Output:** `route.geojson` = ONE LineString, EPSG:32635, starts AND ends at START
-  `[629504.7, 5220250.75]` within **5 m**, with a `length_m` property. Repo root.
+  `[629663.8, 5220195.3]` within **5 m**, with a `length_m` property. Repo root.
 - **Walkable surface:** passable **inter-row areas** ⋃ **authorised passages** ONLY. NOT
   canopies, fences, forbidden zones. (interrow_area is explicitly "the walkable ground the route uses".)
 - **Targets = inspection locations + detected waste.**

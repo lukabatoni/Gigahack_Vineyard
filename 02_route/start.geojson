@@ -12,17 +12,17 @@
       "type": "Feature",
       "properties": {
         "name": "START",
-        "description": "Route start and finish: dirt-road junction at the north-west corner of the vineyard block",
+        "description": "Route start and finish: pre-test point provided by organizer",
         "crs": "EPSG:32635",
-        "lon": 28.7073776,
-        "lat": 47.1230335,
+        "lon": 28.7094577,
+        "lat": 47.1225039,
         "tile": "siret3_r018_c010.tif"
       },
       "geometry": {
         "type": "Point",
         "coordinates": [
-          629504.7,
-          5220250.75
+          629663.8,
+          5220195.3
         ]
       }
     }

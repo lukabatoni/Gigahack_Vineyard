@@ -69,7 +69,7 @@ component "ahead" of the slice it feeds.
   real 311 tiles and the web app must load the output. **This is the definition of "works".**
 
 ### P1 — Route (25%) — highest single-component leverage
-- User-selectable START in the web app; organizer's fixed START `[629504.7, 5220250.75]`
+- User-selectable START in the web app; organizer's pre-test START `[629663.8, 5220195.3]`
   is the **default** used for the scored `route.geojson`.
 - Graph over walkable ground = `passages ∪ interrow_area − forbidden − canopy`.
 - Targets = **waste centroids** + **disrupted-row inspection points** (dead plants).

@@ -4,8 +4,33 @@
 > This is the live heartbeat of the project. If anything here is stale, the whole
 > chat starts from a wrong assumption. Keep it accurate.
 
-**Last updated:** 2026-09-26 (Fri) — web interface (Task 11) built & data-verified; see `40_INTERFACE.md`. Parallel two-lane work protocol added; see `50_PARALLEL_WORK.md`. Training resumed to 40 epochs (bg id bp67b2phx).
+**Last updated:** 2026-09-27 (Sun) — `main` branch made submission-ready: all four root deliverables present + reproducible. See "Current stage".
 **Deadline:** 15:00 Sunday 2026-09-27 (Chișinău time)
+
+---
+
+## 2026-09-27 — main branch submission prep (DONE)
+
+Made `main` a self-contained, reproducible submission per the organizer checklist:
+- **`route.geojson`** (root): closed LineString, EPSG:32635, start==end within 5 m of
+  START `[629663.8, 5220195.3]` (organizer pre-test point — supersedes the old
+  `[629504.7,5220250.75]`), `length_m=3456.3`. `route_farmer.geojson` also present (3200.8 m).
+  Both PASS the hard gates (100% inside walkable, ends_ok, 0 unreachable).
+- **`measurements.csv`** (root): promoted from the verified 9-tile demo region
+  (`measurements_demo9.csv`) — 3 blocks, 131 rows, 6263.96 m row length, 855.29 m² canopy,
+  15267.68 m² inter-row. Chosen over the stale `measurements_all.csv` (pre-fix inflated
+  counts 335/428, zero canopy).
+- **`README.md`** (root): run steps (tiles → route + measurements + web), processing
+  time + hardware (Apple M1 Pro/16 GB, MPS; ~4–6 s/tile, full 311 ~30–45 min), weights location.
+- **`Dockerfile`** (root): python:3.9-slim + GDAL/GEOS/PROJ apt libs + pinned requirements.
+- **Weights fix:** the tracked `weights/canopy_row_best.pt` (md5 7666f1) was NOT the model
+  the pipeline uses. Copied the real negatives-trained rows model to `weights/rows_best.pt`
+  (md5 0c713ac2) and repointed `rows_postproc.BEST` to a repo-relative path (env `ROWS_WEIGHTS`
+  override). Previously `BEST` hard-coded an absolute gitignored `pipeline/runs/` path.
+- **Fixed pipeline onto main:** brought `assign_ids.py` (row-stitch `_same_rowline` fix +
+  MIN_ROWS_PER_BLOCK prune + canopy vineyard_id), `run_pipeline.py` (canopy+interrow wiring,
+  `--tiles-list`), and new `interrow.py` from `laneA/full-stack-demo9`. main previously had
+  the OLD over-merging stitch (`di <= ROW_MERGE_M`). Imports + weights load verified.
 
 ---
 

@@ -18,7 +18,7 @@ Method: regular grid over the walkable polygon (nodes = points inside; edges =
 4-neighbour segments that stay inside) → shortest paths (networkx) between START
 and every target → nearest-neighbour + 2-opt TSP returning to START → stitch.
 
-START: [629504.7, 5220250.75] EPSG:32635 (tile siret3_r018_c010.tif).
+START: [629663.8, 5220195.3] EPSG:32635 (47.1225039N 28.7094577E) — organizer pre-test point.
 """
 import argparse
 import json
@@ -34,7 +34,7 @@ from scipy.spatial import cKDTree
 
 REPO = Path(__file__).resolve().parent.parent
 ROUTE_DIR = REPO / "02_route"
-START_XY = (629504.7, 5220250.75)          # EPSG:32635
+START_XY = (629663.8, 5220195.3)           # EPSG:32635 — organizer pre-test point
 CRS_32635 = {"type": "name", "properties": {"name": "urn:ogc:def:crs:EPSG::32635"}}
 
 RESOLUTION_M = 2.0        # grid spacing; snap error ≤ res/√2 ≈ 1.41 m (< 2 m coverage)

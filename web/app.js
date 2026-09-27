@@ -55,7 +55,7 @@ const blank = L.layerGroup();
 // Our own 2.5 cm/px orthomosaic, pre-rendered to an XYZ pyramid by
 // pipeline/build_imagery_tiles.py. Transparent outside the survey → sits on top
 // of the satellite basemap as an overlay. Sharp well past Esri's z19 ceiling.
-const ORTHO_MAXNATIVE = 21; // deepest zoom the pyramid was generated for
+const ORTHO_MAXNATIVE = 20; // deepest zoom the pyramid was generated for
 const ortho = L.tileLayer("data/imagery/{z}/{x}/{y}.png", {
   maxZoom: MAX_ZOOM,
   maxNativeZoom: ORTHO_MAXNATIVE,
